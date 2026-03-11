@@ -1,0 +1,26 @@
+{
+  "language": "sv",
+  "prompts": {
+    "sv": {
+      "ai_summary": "Analysera följande kommentarer från YouTube-videon '{title}'. Skriv en koncis sammanfattning (cirka 3-4 meningar) av den allmänna tittarstämningen, de huvudsakliga ämnena som diskuteras och de övergripande åsikterna från publiken.\n\nKommentarer:\n{comments_string}\n\nVänligen tillhandahåll en sammanfattning som är neutral och inte tar ställning i ämnet. Avsluta med en sentimentklassificering: [POSITIV], [NEUTRAL], eller [NEGATIV].",
+      "discord_title": "🤖 AI Kommentaranalys {date}",
+      "channel_field": "Kanal",
+      "video_field": "Video"
+    },
+    "en": {
+      "ai_summary": "Analyze the following comments from the YouTube video '{title}'. Write a concise summary (around 3-4 sentences) of the general viewer sentiment, the main topics being discussed, and the overall opinions of the audience.\n\nComments:\n{comments_string}\n\nPlease provide a summary that is neutral and does not take a stance on the topic. End with a sentiment classification: [POSITIVE], [NEUTRAL], or [NEGATIVE].",
+      "discord_title": "🤖 AI Comment Analysis {date}",
+      "channel_field": "Channel",
+      "video_field": "Video"
+    }
+  },
+  "settings": {
+    "max_comments": 150,
+    "date_format": "%Y-%m-%d"
+  },
+  "colors": {
+    "positive": "0x00FF00",
+    "neutral": "0x3498DB", 
+    "negative": "0xFF0000"
+  }
+}
