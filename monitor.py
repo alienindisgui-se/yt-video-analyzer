@@ -6,6 +6,7 @@ import random
 import sys
 import logging
 import hashlib
+import subprocess
 from dotenv import load_dotenv
 from groq import Groq
 from playwright.sync_api import sync_playwright, TimeoutError
@@ -19,7 +20,8 @@ sys.stdout.reconfigure(encoding='utf-8')
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Configuration
-CHANNELS = ['CarlFredrikAlexanderRask', 'ANJO1', 'MotVikten', 'Skuldis']
+CHANNELS = ['CarlFredrikAlexanderRask']
+# CHANNELS = ['CarlFredrikAlexanderRask', 'ANJO1', 'MotVikten', 'Skuldis']
 STATE_FILE = "comment_state.json"
 CONFIG_FILE = "config.json"
 WEBHOOK = os.getenv("DISCORD_WEBHOOK")
@@ -336,6 +338,10 @@ def fetch_latest_videos(channels):
     
     return latest_videos
 
+def generate_persistent_id(author, text):
+    raw_str = f"{author}|{text}"
+    return hashlib.md5(raw_str.encode('utf-8')).hexdigest()
+
 def get_yt_data(v_id, deep_scrape=False):
     user_agent = random.choice(USER_AGENTS)
     logging.info(f"Selected user agent for scraping comments: {user_agent}")
@@ -382,40 +388,119 @@ def get_yt_data(v_id, deep_scrape=False):
                 except TimeoutError:
                     pass
 
+            # LANGUAGE-INDEPENDENT SORT TO "NEWEST FIRST"
+            if deep_scrape:
+                try:
+                    page.evaluate("""() => {
+                        const btn = document.querySelector('ytd-comments-header-renderer #sort-menu');
+                        if (btn) btn.click();
+                    }""")
+                    page.wait_for_timeout(1000)
+                    
+                    page.evaluate("""() => {
+                        const items = document.querySelectorAll('ytd-menu-service-item-renderer');
+                        if (items.length > 1) items[1].click();
+                    }""")
+                    page.wait_for_timeout(3000)
+                    logging.info("Sorted comments to 'Newest first' (language-independent).")
+                except Exception as e:
+                    logging.warning(f"Failed to sort comments: {e}. Proceeding with default sort.")
+
             comments = {}
             if deep_scrape:
-                logging.info(f"Starting deep scrape for '{title}'.")
+                logging.info(f"Starting deep scrape for '{title}'. UI reports ~{ui_count} comments.")
                 
-                # Scroll to load all threads
-                last_thread_count, no_change = 0, 0
+                # Phase 1: Load all top-level threads by scrolling
+                logging.info("Loading all top-level comment threads...")
+                last_thread_count = 0
+                no_change = 0
                 while True:
-                    current_thread = page.locator('ytd-comment-thread-renderer').count()
+                    thread_nodes = page.locator('ytd-comment-thread-renderer')
+                    current_thread = thread_nodes.count()
+                    logging.info(f"Current top-level threads: {current_thread}")
                     if current_thread == last_thread_count:
                         no_change += 1
-                        if no_change >= 3: break
+                        if no_change >= 3:
+                            logging.info(f"Loaded {current_thread} top-level threads.")
+                            break
                     else:
-                        no_change, last_thread_count = 0, current_thread
+                        no_change = 0
+                        last_thread_count = current_thread
                     page.evaluate("document.scrollingElement.scrollTop = document.scrollingElement.scrollHeight")
+                    logging.info("Scrolled to bottom for thread loading.")
                     page.wait_for_timeout(5000)
 
-                # Final extraction
+                # Phase 2: Expand replies using JavaScript to bypass actionability checks
+                logging.info("Expanding nested replies via JavaScript injection...")
+                max_iterations = 3  # Run a few times in case clicking reveals nested "show more" buttons
+                
+                for i in range(max_iterations):
+                    try:
+                        # Inject JS to find all reply buttons and click them directly in the DOM
+                        clicks_dispatched = page.evaluate("""() => {
+                            const buttons = Array.from(document.querySelectorAll('ytd-button-renderer#more-replies button'));
+                            let count = 0;
+                            for (let btn of buttons) {
+                                // Basic check to ensure the button is actually rendered in the DOM
+                                if (btn.offsetParent !== null) { 
+                                    btn.click();
+                                    count++;
+                                }
+                            }
+                            return count;
+                        }""")
+                        
+                        logging.info(f"Iteration {i+1}: Dispatched {clicks_dispatched} clicks via JS.")
+                        
+                        if clicks_dispatched == 0:
+                            logging.info("No more expansion buttons found. Expansion complete.")
+                            break
+                            
+                        # Wait a moment for the requested replies to render in the DOM
+                        page.wait_for_timeout(4000)
+                        
+                        # Scroll down to ensure we trigger any lazy-loaded elements
+                        page.evaluate("document.scrollingElement.scrollTop = document.scrollingElement.scrollHeight")
+                        page.wait_for_timeout(2000)
+                        
+                    except Exception as e:
+                        logging.warning(f"Iteration {i+1} JS click failed: {str(e).splitlines()[0]}")
+                        break
+
+                logging.info("Proceeding to final extraction.")
+
+                # Phase 3: Final scroll to ensure all loaded
+                logging.info("Performing final scroll to load any remaining content...")
+                page.evaluate("document.scrollingElement.scrollTop = document.scrollingElement.scrollHeight")
+                page.wait_for_timeout(5000)
+
+                # Extract all loaded comments
+                logging.info("Extracting all loaded comments...")
                 author_locs = page.locator('#author-text')
                 text_locs = page.locator('#content-text')
                 extracted_count = text_locs.count()
-                
+                logging.info(f"Found {extracted_count} comment texts for extraction (including replies).")
                 for i in range(extracted_count):
                     try:
                         author = author_locs.nth(i).text_content().strip()
                         text = text_locs.nth(i).text_content().strip()
                         c_id = generate_persistent_id(author, text)
-                        if c_id not in comments:
+                        if c_id in comments:
+                            logging.debug(f"Duplicate comment detected at index {i}: {text[:50]}...")
+                        else:
                             comments[c_id] = {
-                                'a': author, 't': text, 'ts_posted': int(time.time()),
-                                'lastSeen': int(time.time()), 'deleted': False, 'notFoundCounter': 0
+                                'a': author,
+                                't': text,
+                                'ts_posted': int(time.time()),  # Approximate posted time, since scraping doesn't provide exact
+                                'created_at': int(time.time()),
+                                'lastSeen': int(time.time()),
+                                'deleted': False,
+                                'notFoundCounter': 0
                             }
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logging.warning(f"Failed to extract comment {i}: {e}")
                 
+                logging.info(f"Extracted {len(comments)} unique comments after deduplication.")
                 if ui_count == 0 and len(comments) > 0:
                     ui_count = len(comments)
                     
@@ -454,13 +539,62 @@ def get_transcript_and_analysis(v_id, title):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([f"https://www.youtube.com/watch?v={v_id}"])
             
+        logging.info(f"Audio downloaded successfully for {v_id}.")
+        
+        # Dynamically trim audio based on duration to respect Groq's ASPH rate limits (7200s/hour)
+        # Trim to first 45 minutes for safety, as longer videos would exceed limits.
+        try:
+            # Use ffprobe to get duration (assumes ffmpeg/ffprobe is installed)
+            result = subprocess.run(
+                ['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_format', audio_filepath],
+                capture_output=True, text=True, check=True
+            )
+            info = json.loads(result.stdout)
+            duration = float(info['format']['duration'])
+            logging.info(f"Downloaded audio duration: {duration:.1f} seconds")
+            
+            MAX_AUDIO_SECS = 2700  # 45 minutes instead of 60 to be more conservative
+            if duration > MAX_AUDIO_SECS:
+                trimmed_filepath = audio_filepath.replace('.m4a', '_trimmed.m4a')
+                logging.info(f"Trimming audio to first {MAX_AUDIO_SECS} seconds to comply with rate limits.")
+                subprocess.run([
+                    'ffmpeg', '-i', audio_filepath,
+                    '-t', str(MAX_AUDIO_SECS),
+                    '-c', 'copy',  # Stream copy for speed (no re-encoding)
+                    trimmed_filepath,
+                    '-y'  # Overwrite if exists
+                ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                
+                # Replace original with trimmed version
+                os.remove(audio_filepath)
+                audio_filepath = trimmed_filepath
+                logging.info(f"Audio trimmed successfully to {MAX_AUDIO_SECS}s.")
+        except Exception as trim_e:
+            # Fallback: Try yt-dlp trimming instead of ffmpeg
+            try:
+                logging.warning(f"FFmpeg trimming failed: {trim_e}. Trying yt-dlp fallback trimming.")
+                # Use yt-dlp to download only first 45 minutes
+                trimmed_filepath = audio_filepath.replace('.m4a', '_trimmed.m4a')
+                trim_opts = ydl_opts.copy()
+                trim_opts['outtmpl'] = trimmed_filepath
+                trim_opts['download_sections'] = '*0:2700'  # Correct parameter for time ranges
+                
+                with yt_dlp.YoutubeDL(trim_opts) as trim_ydl:
+                    trim_ydl.download([f"https://www.youtube.com/watch?v={v_id}"])
+                
+                os.remove(audio_filepath)
+                audio_filepath = trimmed_filepath
+                logging.info("Audio trimmed successfully using yt-dlp fallback.")
+            except Exception as ydl_trim_e:
+                logging.warning(f"Both ffmpeg and yt-dlp trimming failed: {ydl_trim_e}. Proceeding with full audio - may hit rate limits.")
+        
         logging.info(f"Sending audio to Groq Whisper API for transcription...")
         
         # Using the Groq client you already initialized in ModelManager
         with open(audio_filepath, "rb") as file:
             transcription = model_manager.client.audio.transcriptions.create(
                 file=(os.path.basename(audio_filepath), file.read()),
-                model="whisper-large-v3",
+                model="whisper-large-v3-turbo",  # Available on Groq free tier, more efficient than v3
                 response_format="text",
                 language="sv" # Forcing Swedish context for channels like Anjo/Rask. Remove this line for auto-detect.
             )
@@ -469,8 +603,14 @@ def get_transcript_and_analysis(v_id, title):
         logging.info(f"Audio successfully transcribed! ({len(full_text)} characters)")
         
     except Exception as e:
-        logging.error(f"Audio ripping or transcription failed for {v_id}: {e}")
-        return None, None
+        error_msg = str(e).lower()
+        if "429" in error_msg or "rate limit" in error_msg or "rate_limit_exceeded" in error_msg:
+            logging.error(f"Groq rate limit reached during transcription for {v_id}: {e}")
+            logging.error("Aborting entire script run to prevent further violations.")
+            sys.exit(1)  # Immediate abortion as requested
+        else:
+            logging.error(f"Audio ripping or transcription failed for {v_id}: {e}")
+            return None, None
         
     finally:
         # Always clean up the evidence (temp file)
