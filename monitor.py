@@ -20,9 +20,10 @@ sys.stdout.reconfigure(encoding='utf-8')
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Configuration
-CHANNELS = ['CarlFredrikAlexanderRask']
-# CHANNELS = ['CarlFredrikAlexanderRask', 'ANJO1', 'MotVikten', 'Skuldis']
+# CHANNELS = ['CarlFredrikAlexanderRask']
+CHANNELS = ['CarlFredrikAlexanderRask', 'ANJO1', 'MotVikten', 'Skuldis']
 STATE_FILE = "comment_state.json"
+ANALYSIS_STATS_FILE = "analysis_stats.json"  # Track video analysis counts per channel
 CONFIG_FILE = "config.json"
 WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
@@ -342,6 +343,25 @@ def generate_persistent_id(author, text):
     raw_str = f"{author}|{text}"
     return hashlib.md5(raw_str.encode('utf-8')).hexdigest()
 
+def load_analysis_stats():
+    """Load analysis statistics from JSON file"""
+    try:
+        with open(ANALYSIS_STATS_FILE, "r", encoding='utf-8') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+    except Exception as e:
+        logging.warning(f"Failed to load analysis stats: {e}")
+        return {}
+
+def save_analysis_stats(stats):
+    """Save analysis statistics to JSON file"""
+    try:
+        with open(ANALYSIS_STATS_FILE, "w", encoding='utf-8') as f:
+            json.dump(stats, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        logging.error(f"Failed to save analysis stats: {e}")
+
 def get_yt_data(v_id, deep_scrape=False):
     user_agent = random.choice(USER_AGENTS)
     logging.info(f"Selected user agent for scraping comments: {user_agent}")
@@ -544,49 +564,20 @@ def get_transcript_and_analysis(v_id, title):
         # Dynamically trim audio based on duration to respect Groq's ASPH rate limits (7200s/hour)
         # Trim to first 45 minutes for safety, as longer videos would exceed limits.
         try:
-            # Use ffprobe to get duration (assumes ffmpeg/ffprobe is installed)
-            result = subprocess.run(
-                ['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_format', audio_filepath],
-                capture_output=True, text=True, check=True
-            )
-            info = json.loads(result.stdout)
-            duration = float(info['format']['duration'])
-            logging.info(f"Downloaded audio duration: {duration:.1f} seconds")
+            # Use yt-dlp to download only first 45 minutes
+            trimmed_filepath = audio_filepath.replace('.m4a', '_trimmed.m4a')
+            trim_opts = ydl_opts.copy()
+            trim_opts['outtmpl'] = trimmed_filepath
+            trim_opts['download_sections'] = '*0:2700'  # Correct parameter for time ranges
             
-            MAX_AUDIO_SECS = 2700  # 45 minutes instead of 60 to be more conservative
-            if duration > MAX_AUDIO_SECS:
-                trimmed_filepath = audio_filepath.replace('.m4a', '_trimmed.m4a')
-                logging.info(f"Trimming audio to first {MAX_AUDIO_SECS} seconds to comply with rate limits.")
-                subprocess.run([
-                    'ffmpeg', '-i', audio_filepath,
-                    '-t', str(MAX_AUDIO_SECS),
-                    '-c', 'copy',  # Stream copy for speed (no re-encoding)
-                    trimmed_filepath,
-                    '-y'  # Overwrite if exists
-                ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                
-                # Replace original with trimmed version
-                os.remove(audio_filepath)
-                audio_filepath = trimmed_filepath
-                logging.info(f"Audio trimmed successfully to {MAX_AUDIO_SECS}s.")
-        except Exception as trim_e:
-            # Fallback: Try yt-dlp trimming instead of ffmpeg
-            try:
-                logging.warning(f"FFmpeg trimming failed: {trim_e}. Trying yt-dlp fallback trimming.")
-                # Use yt-dlp to download only first 45 minutes
-                trimmed_filepath = audio_filepath.replace('.m4a', '_trimmed.m4a')
-                trim_opts = ydl_opts.copy()
-                trim_opts['outtmpl'] = trimmed_filepath
-                trim_opts['download_sections'] = '*0:2700'  # Correct parameter for time ranges
-                
-                with yt_dlp.YoutubeDL(trim_opts) as trim_ydl:
-                    trim_ydl.download([f"https://www.youtube.com/watch?v={v_id}"])
-                
-                os.remove(audio_filepath)
-                audio_filepath = trimmed_filepath
-                logging.info("Audio trimmed successfully using yt-dlp fallback.")
-            except Exception as ydl_trim_e:
-                logging.warning(f"Both ffmpeg and yt-dlp trimming failed: {ydl_trim_e}. Proceeding with full audio - may hit rate limits.")
+            with yt_dlp.YoutubeDL(trim_opts) as trim_ydl:
+                trim_ydl.download([f"https://www.youtube.com/watch?v={v_id}"])
+            
+            os.remove(audio_filepath)
+            audio_filepath = trimmed_filepath
+            logging.info("Audio trimmed successfully using yt-dlp.")
+        except Exception as ydl_trim_e:
+            logging.warning(f"Audio trimming failed: {ydl_trim_e}. Proceeding with full audio - may hit rate limits.")
         
         logging.info(f"Sending audio to Groq Whisper API for transcription...")
         
@@ -594,7 +585,7 @@ def get_transcript_and_analysis(v_id, title):
         with open(audio_filepath, "rb") as file:
             transcription = model_manager.client.audio.transcriptions.create(
                 file=(os.path.basename(audio_filepath), file.read()),
-                model="whisper-large-v3-turbo",  # Available on Groq free tier, more efficient than v3
+                model="whisper-large-v2",  # More generous rate limits than v3-turbo
                 response_format="text",
                 language="sv" # Forcing Swedish context for channels like Anjo/Rask. Remove this line for auto-detect.
             )
@@ -703,6 +694,7 @@ Provide a unified analysis covering:
 - Structure clearly with bold headings
 - Be concise but comprehensive
 - Only mention like ratio if below 90%
+- Add a line break (\n) between **Juridisk bedömning:** and **Sammanfattning:** sections
 - Provide direct analysis without thinking blocks or meta-commentary
 """
     
@@ -802,6 +794,19 @@ def summarize_comments_with_ai(title, comments_dict, v_id, video_stats):
         embed_color = get_gradient_color(video_stats['like_ratio'])
         logging.info(f"Generated gradient color: {hex(embed_color)} for like ratio: {video_stats['like_ratio']:.1f}%")
         
+        # Track analysis count and prompt
+        analysis_stats = load_analysis_stats()
+        if channel_name not in analysis_stats:
+            analysis_stats[channel_name] = {"videos_analyzed": 0, "last_model": used_model, "last_prompt": prompt}
+        analysis_stats[channel_name]["videos_analyzed"] += 1
+        analysis_stats[channel_name]["last_model"] = used_model
+        analysis_stats[channel_name]["last_prompt"] = prompt
+        save_analysis_stats(analysis_stats)
+        
+        # Create footer with analysis count and model
+        videos_analyzed = analysis_stats[channel_name]["videos_analyzed"]
+        footer_text = f"**{videos_analyzed}** videos from @{channel_name} has been analysed. This analysis was made using __{used_model}__"
+        
         # Send summary to Discord
         if WEBHOOK:
             # Find channel name from video URL by checking which channel list contains this video ID
@@ -830,7 +835,10 @@ def summarize_comments_with_ai(title, comments_dict, v_id, video_stats):
                         {"name": PROMPTS["channel_field"], "value": channel_name, "inline": True},
                         {"name": PROMPTS["video_field"], "value": f"[{title}](https://www.youtube.com/watch?v={v_id})", "inline": False},
                     ],
-                    "description": cleaned_summary
+                    "description": cleaned_summary,
+                    "footer": {
+                        "text": footer_text
+                    }
                 }]
             }
             requests.post(WEBHOOK, json=payload)
