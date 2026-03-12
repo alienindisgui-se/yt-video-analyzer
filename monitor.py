@@ -33,19 +33,19 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 def estimate_tokens(text, content_type="general"):
     """
     Estimate token count based on content type and character count.
-    Different content types have different token-to-character ratios.
+    Using conservative ratios to avoid 413 errors.
     """
     if not text:
         return 0
     
     char_count = len(text)
     
-    # Token-to-character ratios by content type (approximate)
+    # Conservative token-to-character ratios (updated based on actual API behavior)
     ratios = {
-        "general": 4.0,      # Average: 1 token ≈ 4 chars
-        "transcript": 3.5,    # Transcripts: more dense, 1 token ≈ 3.5 chars  
-        "comments": 4.5,      # Comments: more informal, 1 token ≈ 4.5 chars
-        "prompt": 3.8         # Instructions/prompts: 1 token ≈ 3.8 chars
+        "general": 3.0,      # More conservative: 1 token ≈ 3 chars
+        "transcript": 2.8,    # Transcripts: dense, 1 token ≈ 2.8 chars  
+        "comments": 3.2,      # Comments: informal, 1 token ≈ 3.2 chars
+        "prompt": 2.9         # Instructions/prompts: 1 token ≈ 2.9 chars
     }
     
     ratio = ratios.get(content_type, ratios["general"])
@@ -74,10 +74,10 @@ def validate_and_trim_content(content, max_tokens, content_type="general", prior
     
     logging.warning(f"Content exceeds token limit: {estimated_tokens} > {max_tokens} (type: {content_type})")
     
-    # Calculate target character count based on token ratio
-    ratios = {"general": 4.0, "transcript": 3.5, "comments": 4.5, "prompt": 3.8}
-    ratio = ratios.get(content_type, 4.0)
-    target_chars = int(max_tokens * ratio * 0.9)  # 90% to be safe
+    # Calculate target character count based on token ratio - use 75% for safety margin
+    ratios = {"general": 3.0, "transcript": 2.8, "comments": 3.2, "prompt": 2.9}
+    ratio = ratios.get(content_type, 3.0)
+    target_chars = int(max_tokens * ratio * 0.75)  # 75% to be very safe
     
     if priority == "beginning":
         # Keep beginning - most important info usually at start
@@ -97,7 +97,7 @@ def validate_and_trim_content(content, max_tokens, content_type="general", prior
             trimmed = beginning + "... [middle truncated] ..." + ending
     
     new_tokens = estimate_tokens(trimmed, content_type)
-    logging.info(f"Trimmed content from {estimated_tokens} to {new_tokens} tokens ({len(content)} -> {len(trimmed)} chars)")
+    logging.info(f"Trimmed content from {estimated_tokens} to {new_tokens} tokens ({len(content)} -> {len(trimmed)} chars) - using 75% safety margin")
     
     return trimmed, new_tokens, True
 
@@ -124,12 +124,12 @@ class ModelManager:
         self.available_models = self.ai_config.get('models', {})
         self.client = Groq(api_key=GROQ_API_KEY)
         
-        # Model token limits (update based on actual API limits)
+        # Conservative model token limits based on actual API behavior and safety margins
         self.model_limits = {
-            "llama-3.3-70b-versatile": 12000,  # Highest capacity
-            "qwen/qwen3-32b": 6000,
-            "llama-3.1-8b-instant": 6000,
-            "gemini-2.0-flash": 8000,  # Gemini flash model limit
+            "llama-3.3-70b-versatile": 10000,  # Reduced from 12k for safety
+            "qwen/qwen3-32b": 4500,        # Reduced from 6k due to 413 errors
+            "llama-3.1-8b-instant": 4500,  # Reduced from 6k due to 413 errors
+            "gemini-2.0-flash": 7000,        # Reduced from 8k for safety
         }
         
         # Initialize Gemini client if API key is available
@@ -181,10 +181,10 @@ class ModelManager:
         """Try to generate summary with fallback models, prioritizing higher token limits"""
         # Sort models by estimated token capacity (higher limits first)
         models_by_capacity = [
-            ("llama-3.3-70b-versatile", 12000),  # Highest capacity
-            ("gemini-2.0-flash", 8000),  # Gemini second highest
-            ("qwen/qwen3-32b", 6000),
-            ("llama-3.1-8b-instant", 6000),
+            ("llama-3.3-70b-versatile", 10000),  # Highest capacity
+            ("gemini-2.0-flash", 7000),  # Gemini second highest
+            ("qwen/qwen3-32b", 4500),
+            ("llama-3.1-8b-instant", 4500),
         ]
         
         # Add primary and fallback models in capacity order
@@ -211,14 +211,31 @@ class ModelManager:
         for attempt, model_name in enumerate(models_to_try):
             try:
                 # Get token limit for this model
-                max_tokens = self.model_limits.get(model_name, 6000)
+                max_tokens = self.model_limits.get(model_name, 4500)
+                
+                # Progressive content reduction if we've had 413 errors before
+                current_prompt = prompt
+                if attempt > 0:
+                    # Reduce content size progressively for retry attempts
+                    reduction_factor = 0.6 - (attempt * 0.1)  # 60%, 50%, 40%
+                    if reduction_factor < 0.3:
+                        reduction_factor = 0.3
+                    
+                    # Apply reduction to prompt content
+                    lines = current_prompt.split('\n')
+                    if len(lines) > 4:
+                        # Keep first few lines and reduce middle content
+                        keep_lines = max(2, len(lines) // 3)
+                        reduced_lines = lines[:keep_lines] + ["\n... [content reduced for retry]...\n"] + lines[-2:]
+                        current_prompt = '\n'.join(reduced_lines)
+                        logging.info(f"Retry {attempt+1}: Reduced prompt content by {int((1-reduction_factor)*100)}% due to previous 413 errors")
                 
                 # Log payload size before validation
-                log_payload_size(prompt, model_name, max_tokens, "prompt")
+                log_payload_size(current_prompt, model_name, max_tokens, "prompt")
                 
                 # Validate and trim content if necessary
                 validated_prompt, final_tokens, was_trimmed = validate_and_trim_content(
-                    prompt, max_tokens, "prompt", "beginning"
+                    current_prompt, max_tokens, "prompt", "beginning"
                 )
                 
                 if was_trimmed:
@@ -250,8 +267,11 @@ class ModelManager:
                     groq_failures += 1
                     
                 error_msg = str(e).lower()
-                if "413" in error_msg or "payload too large" in error_msg or "tokens" in error_msg:
-                    logging.error(f"Model {model_name} failed: Request too large despite validation ({str(e)[:100]}...). Validation may need adjustment.")
+                if "413" in error_msg or "payload too large" in error_msg:
+                    logging.error(f"Model {model_name} failed: 413 Payload Too Large. This indicates our token estimation still needs adjustment.")
+                    # Continue to next model with reduced content
+                elif "429" in error_msg or "rate limit" in error_msg:
+                    logging.warning(f"Model {model_name} failed: Rate limit reached - {str(e)[:100]}...")
                 else:
                     logging.warning(f"Model {model_name} failed: {str(e)}")
                 
@@ -266,7 +286,7 @@ class ModelManager:
                 
                 if attempt < len(models_to_try) - 1:
                     logging.info(f"Trying next model...")
-                    time.sleep(1)  # Brief delay before retry
+                    time.sleep(2)  # Longer delay for rate limits
                 else:
                     logging.error("All models failed to generate summary")
                     # Final Gemini attempt if not already tried
