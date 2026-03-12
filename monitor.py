@@ -794,13 +794,36 @@ def summarize_comments_with_ai(title, comments_dict, v_id, video_stats):
         embed_color = get_gradient_color(video_stats['like_ratio'])
         logging.info(f"Generated gradient color: {hex(embed_color)} for like ratio: {video_stats['like_ratio']:.1f}%")
         
+        # Determine channel name (used for tracking even without webhook)
+        channel_name = "Unknown Channel"
+        for channel in CHANNELS:
+            # This is a simplified approach - in a real implementation you might want to 
+            # store channel info when fetching videos
+            try:
+                if v_id in [vid for vid in fetch_latest_videos([channel])]:
+                    channel_name = channel
+                    break
+            except Exception:
+                continue
+        
         # Track analysis count and prompt
+        import time
+        current_timestamp = time.time()
+        
         analysis_stats = load_analysis_stats()
         if channel_name not in analysis_stats:
-            analysis_stats[channel_name] = {"videos_analyzed": 0, "last_model": used_model, "last_prompt": prompt}
+            analysis_stats[channel_name] = {
+                "videos_analyzed": 0, 
+                "last_model": used_model, 
+                "last_prompt": prompt,
+                "last_video_id": v_id,
+                "last_checked": current_timestamp
+            }
         analysis_stats[channel_name]["videos_analyzed"] += 1
         analysis_stats[channel_name]["last_model"] = used_model
         analysis_stats[channel_name]["last_prompt"] = prompt
+        analysis_stats[channel_name]["last_video_id"] = v_id
+        analysis_stats[channel_name]["last_checked"] = current_timestamp
         save_analysis_stats(analysis_stats)
         
         # Create footer with analysis count and model
@@ -809,14 +832,6 @@ def summarize_comments_with_ai(title, comments_dict, v_id, video_stats):
         
         # Send summary to Discord
         if WEBHOOK:
-            # Find channel name from video URL by checking which channel list contains this video ID
-            channel_name = "Unknown Channel"
-            for channel in CHANNELS:
-                # This is a simplified approach - in a real implementation you might want to 
-                # store channel info when fetching videos
-                if v_id in [vid for vid in fetch_latest_videos([channel])]:
-                    channel_name = channel
-                    break
             
             # Use Discord title from configuration with video title and ID
             discord_title = PROMPTS["discord_title"].format(title=title, v_id=v_id)
@@ -844,6 +859,7 @@ def summarize_comments_with_ai(title, comments_dict, v_id, video_stats):
             requests.post(WEBHOOK, json=payload)
     except Exception as e:
         logging.error(f"Failed to generate AI summary: {e}")
+        sys.exit(1)  # Abort script on ERROR logs as requested
 
 # --- MAIN LOGIC ---
 if __name__ == "__main__":
