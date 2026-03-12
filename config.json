@@ -23,13 +23,13 @@
   },
   "prompts": {
     "sv": {
-      "ai_summary": "Du är en klinisk medieanalytiker. Leverera en rak och kompakt analys av videon \"{title}\". Var objektiv men 'hård'.\n\n**Instruktioner:**\n1. **Sammanfattning:** Max 2 meningar om den dominerande stämningen. Nämn ENDAST like/dislike-förhållandet om likes understiger 90%, och väv då in det organiskt för att förklara diskrepans eller förstärka kritiken. Om likes är 90% eller högre, ignorera siffran helt.\n2. **Juridisk bedömning:** Inled alltid med meningen 'Sannolikheten är [hög/låg] för förtal.' Följ upp med max en mening som konkret motiverar bedömningen (t.ex. förekomst av anklagelser om brott, grova förolämpningar eller koordinerade drev).\n\n**Formatering:**\n- Fetmarkera ENDAST de inledande orden (**Sammanfattning:** och **Juridisk bedömning:**).\n- Inga listor, inga rubriker för 'Tema' eller 'Ratio'.\n- Inga kursiveringar eller onödig utfyllnad.\n\n**Data:**\nKommentarer: {comments_string}",
+      "ai_summary": "Du är en klinisk medieanalytiker. Leverera en rak och kompakt analys av videon \"{title}\". Var objektiv men 'hård'.\n\n**Instruktioner:**\n1. **Sammanfattning:** Max 2 meningar om den dominerande stämningen. Nämn ENDAST like/dislike-förhållandet om likes understiger 90%, och väv då in det organiskt för att förklara diskrepans eller förstärka kritiken. Om likes är 90% eller högre, ignorera siffran helt.\n2. **Juridisk bedömning:** Inled alltid med meningen 'Sannolikheten är [hög/låg] för förtal.' Följ upp med max en mening som konkret motiverar bedömningen (t.ex. förekomst av anklagelser om brott, grova förolämpningar eller koordinerade drev).\n\n**VIKTIGT:** \n- Använd INGEN kodblock (```), markdown-formatering eller specialtecken.\n- Fetmarkera ENDAST de inledande orden (**Sammanfattning:** och **Juridisk bedömning:**).\n- Inga listor, inga rubriker för 'Tema' eller 'Ratio'.\n- Inga kursiveringar eller onödig utfyllnad.\n- Ge svaret som ren text utan några formateringselement förutom de specificerade fetmarkeringarna.\n\n**Data:**\nKommentarer: {comments_string}",
       "discord_title": "🤖 AI-Analys: {title}",
       "channel_field": "Kanal",
       "video_field": "Video"
     },
     "en": {
-      "ai_summary": "You are a clinical media analyst. Provide a blunt and compact analysis of \"{title}\". Be objective and 'hard'.\n\n**Instructions:**\n1. **Summary:** Max 2 sentences on the dominant mood. ONLY mention the like/dislike ratio if likes are below 90%, weaving it in organically. If likes are 90% or higher, ignore the figure entirely.\n2. **Legal Assessment:** Always start with 'The probability is [high/low] for defamation.' Follow with max one sentence justifying the assessment (e.g., presence of criminal accusations, severe insults, or coordinated harassment).\n\n**Formatting:**\n- Bold ONLY the starting words (**Summary:** and **Legal Assessment:**).\n- No lists, no headings for 'Theme' or 'Ratio'.\n- No italics or unnecessary filler text.\n\n**Data:**\nComments: {comments_string}",
+      "ai_summary": "You are a clinical media analyst. Provide a blunt and compact analysis of \"{title}\". Be objective and 'hard'.\n\n**Instructions:**\n1. **Summary:** Max 2 sentences on the dominant mood. ONLY mention the like/dislike ratio if likes are below 90%, weaving it in organically. If likes are 90% or higher, ignore the figure entirely.\n2. **Legal Assessment:** Always start with 'The probability is [high/low] for defamation.' Follow with max one sentence justifying the assessment (e.g., presence of criminal accusations, severe insults, or coordinated harassment).\n\n**IMPORTANT:**\n- Use NO code blocks (```), markdown formatting or special characters.\n- Bold ONLY the starting words (**Summary:** and **Legal Assessment:**).\n- No lists, no headings for 'Theme' or 'Ratio'.\n- No italics or unnecessary filler text.\n- Provide the response as plain text with no formatting elements except the specified bolding.\n\n**Data:**\nComments: {comments_string}",
       "discord_title": "🤖 AI Analysis: {title}",
       "channel_field": "Channel",
       "video_field": "Video"
@@ -38,10 +38,5 @@
   "settings": {
     "max_comments": 200,
     "date_format": "%Y-%m-%d"
-  },
-  "colors": {
-    "positive": "0x2ECC71",
-    "neutral": "0x3498DB",
-    "negative": "0xE74C3C"
   }
 }

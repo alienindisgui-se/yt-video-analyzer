@@ -114,11 +114,6 @@ CONFIG = load_config()
 CURRENT_LANGUAGE = CONFIG["language"]
 PROMPTS = CONFIG["prompts"][CURRENT_LANGUAGE]
 SETTINGS = CONFIG["settings"]
-COLORS = CONFIG.get("colors", {
-    "positive": "0x00FF00",
-    "neutral": "0x3498DB", 
-    "negative": "0xFF0000"
-})
 
 # Initialize Model Manager
 model_manager = ModelManager(CONFIG)
@@ -372,10 +367,6 @@ def summarize_comments_with_ai(title, comments_dict, v_id, video_stats):
         
         # Send summary to Discord
         if WEBHOOK:
-            from datetime import datetime
-            date_format = SETTINGS.get("date_format", "%Y-%m-%d")
-            current_date = datetime.now().strftime(date_format)
-            
             # Find channel name from video URL by checking which channel list contains this video ID
             channel_name = "Unknown Channel"
             for channel in CHANNELS:
