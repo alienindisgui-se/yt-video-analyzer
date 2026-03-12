@@ -18,6 +18,10 @@
         "provider": "groq",
         "tpd_limit": 100000,
         "description": "Legacy fallback model"
+      },
+      "gemini-2.0-flash": {
+        "provider": "gemini",
+        "description": "Google Gemini fallback when Groq models fail"
       }
     }
   },

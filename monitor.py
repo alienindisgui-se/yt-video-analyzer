@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from groq import Groq
 from playwright.sync_api import sync_playwright, TimeoutError
 import yt_dlp
+import google.genai as genai
 
 # Load environment variables from .env file
 load_dotenv()
@@ -27,6 +28,90 @@ ANALYSIS_STATS_FILE = "analysis_stats.json"  # Track video analysis counts per c
 CONFIG_FILE = "config.json"
 WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+def estimate_tokens(text, content_type="general"):
+    """
+    Estimate token count based on content type and character count.
+    Different content types have different token-to-character ratios.
+    """
+    if not text:
+        return 0
+    
+    char_count = len(text)
+    
+    # Token-to-character ratios by content type (approximate)
+    ratios = {
+        "general": 4.0,      # Average: 1 token ≈ 4 chars
+        "transcript": 3.5,    # Transcripts: more dense, 1 token ≈ 3.5 chars  
+        "comments": 4.5,      # Comments: more informal, 1 token ≈ 4.5 chars
+        "prompt": 3.8         # Instructions/prompts: 1 token ≈ 3.8 chars
+    }
+    
+    ratio = ratios.get(content_type, ratios["general"])
+    return int(char_count / ratio)
+
+def validate_and_trim_content(content, max_tokens, content_type="general", priority="beginning"):
+    """
+    Validate content size and trim if necessary to stay within token limits.
+    
+    Args:
+        content: Text content to validate
+        max_tokens: Maximum allowed tokens
+        content_type: Type of content for accurate token estimation
+        priority: Trimming strategy - "beginning", "balanced", or "end"
+    
+    Returns:
+        Tuple of (trimmed_content, estimated_tokens, was_trimmed)
+    """
+    if not content:
+        return "", 0, False
+    
+    estimated_tokens = estimate_tokens(content, content_type)
+    
+    if estimated_tokens <= max_tokens:
+        return content, estimated_tokens, False
+    
+    logging.warning(f"Content exceeds token limit: {estimated_tokens} > {max_tokens} (type: {content_type})")
+    
+    # Calculate target character count based on token ratio
+    ratios = {"general": 4.0, "transcript": 3.5, "comments": 4.5, "prompt": 3.8}
+    ratio = ratios.get(content_type, 4.0)
+    target_chars = int(max_tokens * ratio * 0.9)  # 90% to be safe
+    
+    if priority == "beginning":
+        # Keep beginning - most important info usually at start
+        trimmed = content[:target_chars] + "... [truncated]"
+    elif priority == "end":
+        # Keep end - for cases where conclusion matters most
+        trimmed = "... [truncated] " + content[-target_chars:]
+    else:  # balanced
+        # Keep beginning and end, sample middle
+        if target_chars < 200:
+            # Too short for balanced approach, just keep beginning
+            trimmed = content[:target_chars] + "... [truncated]"
+        else:
+            third = target_chars // 3
+            beginning = content[:third]
+            ending = content[-third:]
+            trimmed = beginning + "... [middle truncated] ..." + ending
+    
+    new_tokens = estimate_tokens(trimmed, content_type)
+    logging.info(f"Trimmed content from {estimated_tokens} to {new_tokens} tokens ({len(content)} -> {len(trimmed)} chars)")
+    
+    return trimmed, new_tokens, True
+
+def log_payload_size(content, model_name, max_tokens, content_type="general"):
+    """Log payload size information for debugging"""
+    estimated_tokens = estimate_tokens(content, content_type)
+    percentage = (estimated_tokens / max_tokens * 100) if max_tokens > 0 else 0
+    
+    logging.info(f"Payload size for {model_name}: {estimated_tokens}/{max_tokens} tokens ({percentage:.1f}%) - {content_type}")
+    
+    if estimated_tokens > max_tokens:
+        logging.warning(f"Payload EXCEEDS limit by {estimated_tokens - max_tokens} tokens!")
+    
+    return estimated_tokens
 
 class ModelManager:
     """Manages AI model selection, fallbacks, and rate limiting"""
@@ -38,6 +123,25 @@ class ModelManager:
         self.fallback_models = self.ai_config.get('fallback', [])
         self.available_models = self.ai_config.get('models', {})
         self.client = Groq(api_key=GROQ_API_KEY)
+        
+        # Model token limits (update based on actual API limits)
+        self.model_limits = {
+            "llama-3.3-70b-versatile": 12000,  # Highest capacity
+            "qwen/qwen3-32b": 6000,
+            "llama-3.1-8b-instant": 6000,
+            "gemini-2.0-flash": 8000,  # Gemini flash model limit
+        }
+        
+        # Initialize Gemini client if API key is available
+        self.gemini_client = None
+        if GEMINI_API_KEY:
+            try:
+                self.gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+                logging.info("Gemini client initialized successfully")
+            except Exception as e:
+                logging.warning(f"Failed to initialize Gemini client: {e}")
+        else:
+            logging.warning("No GEMINI_API_KEY found - Gemini fallback unavailable")
         
     def get_model_for_request(self):
         """Select the best model for current request"""
@@ -54,11 +158,31 @@ class ModelManager:
         logging.warning("No configured models available, falling back to llama-3.3-70b-versatile")
         return "llama-3.3-70b-versatile"
     
+    def try_gemini_fallback(self, prompt):
+        """Try to generate response using Gemini API as final fallback"""
+        if not self.gemini_client:
+            logging.warning("Gemini client not available for fallback")
+            return None, None
+            
+        try:
+            logging.info("Attempting Gemini API fallback...")
+            response = self.gemini_client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=prompt
+            )
+            summary = response.text.strip()
+            logging.info("Successfully generated summary using Gemini API")
+            return summary, "gemini-2.0-flash"
+        except Exception as e:
+            logging.error(f"Gemini API fallback failed: {e}")
+            return None, None
+    
     def try_model_with_fallback(self, prompt, max_retries=3):
         """Try to generate summary with fallback models, prioritizing higher token limits"""
         # Sort models by estimated token capacity (higher limits first)
         models_by_capacity = [
             ("llama-3.3-70b-versatile", 12000),  # Highest capacity
+            ("gemini-2.0-flash", 8000),  # Gemini second highest
             ("qwen/qwen3-32b", 6000),
             ("llama-3.1-8b-instant", 6000),
         ]
@@ -82,31 +206,75 @@ class ModelManager:
         if "llama-3.3-70b-versatile" not in models_to_try and "llama-3.3-70b-versatile" in self.available_models:
             models_to_try.append("llama-3.3-70b-versatile")
         
+        groq_failures = 0
+        
         for attempt, model_name in enumerate(models_to_try):
             try:
-                logging.info(f"Attempting to use model: {model_name} (attempt {attempt + 1}/{len(models_to_try)})")
+                # Get token limit for this model
+                max_tokens = self.model_limits.get(model_name, 6000)
                 
-                chat_completion = self.client.chat.completions.create(
-                    messages=[{"role": "user", "content": prompt}],
-                    model=model_name,
+                # Log payload size before validation
+                log_payload_size(prompt, model_name, max_tokens, "prompt")
+                
+                # Validate and trim content if necessary
+                validated_prompt, final_tokens, was_trimmed = validate_and_trim_content(
+                    prompt, max_tokens, "prompt", "beginning"
                 )
                 
-                summary = chat_completion.choices[0].message.content.strip()
-                logging.info(f"Successfully generated summary using model: {model_name}")
+                if was_trimmed:
+                    logging.info(f"Content was trimmed for {model_name} to fit token limits")
+                
+                logging.info(f"Attempting to use model: {model_name} (attempt {attempt + 1}/{len(models_to_try)})")
+                
+                # Choose API client based on model provider
+                if model_name.startswith("gemini"):
+                    # Use Gemini API
+                    response = self.gemini_client.models.generate_content(
+                        model=model_name,
+                        contents=validated_prompt
+                    )
+                    summary = response.text.strip()
+                else:
+                    # Use Groq API
+                    chat_completion = self.client.chat.completions.create(
+                        messages=[{"role": "user", "content": validated_prompt}],
+                        model=model_name,
+                    )
+                    summary = chat_completion.choices[0].message.content.strip()
+                
+                logging.info(f"Successfully generated summary using model: {model_name} ({final_tokens} tokens)")
                 return summary, model_name
                 
             except Exception as e:
+                if not model_name.startswith("gemini"):
+                    groq_failures += 1
+                    
                 error_msg = str(e).lower()
                 if "413" in error_msg or "payload too large" in error_msg or "tokens" in error_msg:
-                    logging.warning(f"Model {model_name} failed: Request too large ({str(e)[:100]}...). Content may be too long - consider summarization.")
+                    logging.error(f"Model {model_name} failed: Request too large despite validation ({str(e)[:100]}...). Validation may need adjustment.")
                 else:
                     logging.warning(f"Model {model_name} failed: {str(e)}")
+                
+                # After 2 Groq failures, try Gemini fallback
+                if groq_failures >= 2 and self.gemini_client and "gemini-2.0-flash" not in models_to_try[:attempt+1]:
+                    logging.info("2 Groq models failed, attempting Gemini fallback...")
+                    gemini_summary, gemini_model = self.try_gemini_fallback(prompt)
+                    if gemini_summary:
+                        return gemini_summary, gemini_model
+                    else:
+                        logging.warning("Gemini fallback also failed, continuing with remaining Groq models...")
                 
                 if attempt < len(models_to_try) - 1:
                     logging.info(f"Trying next model...")
                     time.sleep(1)  # Brief delay before retry
                 else:
                     logging.error("All models failed to generate summary")
+                    # Final Gemini attempt if not already tried
+                    if groq_failures < 2 and self.gemini_client:
+                        logging.info("Final attempt: trying Gemini fallback...")
+                        gemini_summary, gemini_model = self.try_gemini_fallback(prompt)
+                        if gemini_summary:
+                            return gemini_summary, gemini_model
                     raise e
         
         return None, None
@@ -203,7 +371,20 @@ def clean_ai_output(text):
 def summarize_transcript(transcript_text, title):
     """Summarize long transcript to key points for analysis (saves tokens)"""
     try:
-        # Very aggressive summarization for token efficiency
+        # Get appropriate token limit for transcript summarization
+        max_tokens = min(model_manager.model_limits.values())  # Use most conservative limit
+        # Reserve 70% for transcript content, 30% for instructions
+        transcript_tokens_available = int(max_tokens * 0.7)
+        
+        # Validate and trim transcript content
+        validated_transcript, transcript_tokens, was_trimmed = validate_and_trim_content(
+            transcript_text, transcript_tokens_available, "transcript", "balanced"
+        )
+        
+        if was_trimmed:
+            logging.info(f"Transcript trimmed from {len(transcript_text)} to {len(validated_transcript)} chars for summarization")
+        
+        # Create summarization prompt
         prompt = f"""Summarize this YouTube video transcript titled '{title}' into a very concise summary (max 300 words):
 
 Key elements to capture:
@@ -215,17 +396,22 @@ Key elements to capture:
 Keep it extremely brief!
 
 Transcript excerpt:
-{transcript_text[:15000]}..."""  # Limit to 15k chars for even more token efficiency
+{validated_transcript}"""
         
-        # Use lightweight model for summarization
-        chat_completion = model_manager.client.chat.completions.create(
-            messages=[{"role": "user", "content": prompt}],
-            model="llama-3.1-8b-instant",  # Lightweight model
-        )
+        # Log prompt size
+        final_tokens = estimate_tokens(prompt, "prompt")
+        logging.info(f"Transcript summarization prompt size: {final_tokens}/{max_tokens} tokens ({final_tokens/max_tokens*100:.1f}%)")
         
-        summary = chat_completion.choices[0].message.content.strip()
-        logging.info(f"Transcript summarized from {len(transcript_text)} to {len(summary)} characters")
-        return summary
+        # Use lightweight model for summarization with fallback
+        summary, used_model = model_manager.try_model_with_fallback(prompt)
+        if summary:
+            logging.info(f"Transcript summarized from {len(transcript_text)} to {len(summary)} characters using model '{used_model}'")
+            return summary
+        else:
+            logging.warning("Transcript summarization failed with all models. Using aggressive truncation.")
+            # More aggressive fallback: extract key sentences
+            sentences = transcript_text.split('.')[:10]  # First 10 sentences
+            return '. '.join(sentences) + "... (severely truncated for token limits)"
         
     except Exception as e:
         logging.warning(f"Transcript summarization failed: {e}. Using aggressive truncation.")
@@ -648,17 +834,28 @@ def analyze_video_comprehensive(v_id, title, comments_dict, video_stats, transcr
 
     logging.info(f"Generating comprehensive AI analysis for video: {title}")
     
-    # Prepare transcript section
+    # Get the model with highest capacity for this analysis
+    max_tokens = max(model_manager.model_limits.values())
+    logging.info(f"Using max token limit for comprehensive analysis: {max_tokens}")
+    
+    # Prepare transcript section with size validation
     transcript_section = ""
     if transcript_text:
-        transcript_section = f"**VIDEO TRANSCRIPT:**\n{transcript_text[:3000]}"  # Limit transcript length
+        # Reserve tokens for other sections (stats, comments, instructions)
+        transcript_tokens_available = int(max_tokens * 0.4)  # 40% for transcript
+        validated_transcript, transcript_tokens, was_trimmed = validate_and_trim_content(
+            transcript_text, transcript_tokens_available, "transcript", "balanced"
+        )
+        transcript_section = f"**VIDEO TRANSCRIPT:**\n{validated_transcript}"
+        if was_trimmed:
+            logging.info(f"Transcript trimmed from {len(transcript_text)} to {len(validated_transcript)} chars")
     else:
         transcript_section = "**VIDEO TRANSCRIPT:**\n(No transcript available - captions disabled)"
     
     # Prepare video stats section
     stats_section = f"**VIDEO ENGAGEMENT:**\n{video_stats['likes']:,} likes, {video_stats['dislikes']:,} dislikes ({video_stats['like_ratio']:.1f}% like ratio)"
     
-    # Prepare comments section
+    # Prepare comments section with size validation
     comments_section = ""
     if comments_dict:
         texts = [c['t'] for c in comments_dict.values() if not c.get('deleted', False)]
@@ -666,7 +863,15 @@ def analyze_video_comprehensive(v_id, title, comments_dict, video_stats, transcr
             max_comments = SETTINGS.get("max_comments", 150)
             sample_texts = texts[:max_comments]
             comments_string = "\n".join([f"- {t}" for t in sample_texts])
-            comments_section = f"**AUDIENCE COMMENTS:**\n{comments_string}"
+            
+            # Reserve tokens for comments (30% of total)
+            comments_tokens_available = int(max_tokens * 0.3)
+            validated_comments, comment_tokens, was_trimmed = validate_and_trim_content(
+                comments_string, comments_tokens_available, "comments", "balanced"
+            )
+            comments_section = f"**AUDIENCE COMMENTS:**\n{validated_comments}"
+            if was_trimmed:
+                logging.info(f"Comments trimmed from {len(comments_string)} to {len(validated_comments)} chars")
         else:
             comments_section = "**AUDIENCE COMMENTS:**\n(No comments available)"
     else:
@@ -701,6 +906,29 @@ Provide a unified analysis covering:
 - Include a blank line (\n\n) between each analysis section
 - Provide direct analysis without thinking blocks or meta-commentary
 """
+    
+    # Log final prompt size
+    final_tokens = estimate_tokens(prompt, "prompt")
+    logging.info(f"Final comprehensive prompt size: {final_tokens}/{max_tokens} tokens ({final_tokens/max_tokens*100:.1f}%)")
+    
+    # Store the prompt in analysis stats immediately after creation
+    import time
+    current_timestamp = time.time()
+    
+    analysis_stats = load_analysis_stats()
+    if channel_name not in analysis_stats:
+        analysis_stats[channel_name] = {
+            "videos_analyzed": 0, 
+            "last_model": "pending", 
+            "last_prompt": prompt,
+            "last_video_id": v_id,
+            "last_checked": current_timestamp
+        }
+    else:
+        analysis_stats[channel_name]["last_prompt"] = prompt
+        analysis_stats[channel_name]["last_video_id"] = v_id
+        analysis_stats[channel_name]["last_checked"] = current_timestamp
+    save_analysis_stats(analysis_stats)
     
     try:
         # Use ModelManager for intelligent model selection and fallback
@@ -762,6 +990,10 @@ def summarize_comments_with_ai(title, comments_dict, v_id, video_stats):
 
     logging.info(f"Generating AI summary for video: {title}")
     
+    # Get the model with highest capacity for this analysis
+    max_tokens = max(model_manager.model_limits.values())
+    logging.info(f"Using max token limit for comment summary: {max_tokens}")
+    
     # Extract comment texts. Limit to configured max comments to avoid hitting free-tier token limits easily.
     texts = [c['t'] for c in comments_dict.values() if not c.get('deleted', False)]
     if not texts:
@@ -775,11 +1007,24 @@ def summarize_comments_with_ai(title, comments_dict, v_id, video_stats):
     # Add video stats to the prompt for better context
     stats_info = f"\n\nVideo Stats: {video_stats['likes']:,} likes, {video_stats['dislikes']:,} dislikes ({video_stats['like_ratio']:.1f}% like ratio)"
     
+    # Reserve tokens for comments (60% of total, leaving room for instructions)
+    comments_tokens_available = int(max_tokens * 0.6)
+    validated_comments, comment_tokens, was_trimmed = validate_and_trim_content(
+        comments_string, comments_tokens_available, "comments", "balanced"
+    )
+    
+    if was_trimmed:
+        logging.info(f"Comments trimmed from {len(comments_string)} to {len(validated_comments)} chars for summary")
+    
     # Use prompt from configuration
     prompt = PROMPTS["ai_summary"].format(
         title=title,
-        comments_string=comments_string + stats_info
+        comments_string=validated_comments + stats_info
     )
+    
+    # Log final prompt size
+    final_tokens = estimate_tokens(prompt, "prompt")
+    logging.info(f"Final comment summary prompt size: {final_tokens}/{max_tokens} tokens ({final_tokens/max_tokens*100:.1f}%)")
 
     try:
         # Use ModelManager for intelligent model selection and fallback
@@ -807,8 +1052,8 @@ def summarize_comments_with_ai(title, comments_dict, v_id, video_stats):
                 if v_id in [vid for vid in fetch_latest_videos([channel])]:
                     channel_name = channel
                     break
-            except Exception:
-                continue
+            except Exception as e:
+                logging.warning(f"Failed to check channel {channel} for video {v_id}: {e}")
         
         # Track analysis count and prompt
         import time
