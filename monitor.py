@@ -500,7 +500,7 @@ def get_video_stats(v_id):
 def fetch_latest_videos(channels):
     latest_videos = []
     user_agent = random.choice(USER_AGENTS)
-    logging.info(f"Selected user agent for fetching videos: {user_agent}")
+    # logging.info(f"Selected user agent for fetching videos: {user_agent}")
     
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -515,7 +515,6 @@ def fetch_latest_videos(channels):
         for channel in channels:
             try:
                 url = f"https://www.youtube.com/@{channel}/videos"
-                logging.info(f"Fetching latest video for channel: {channel}")
                 page.goto(url, timeout=60000)
                 page.wait_for_load_state('networkidle')
                 
@@ -845,6 +844,30 @@ def get_transcript_and_analysis(v_id, title):
             f"Transcript Summary:\n{summarized_transcript}"
         )
         
+        # Store the prompt in analysis stats before making API call
+        import time
+        current_timestamp = time.time()
+        
+        analysis_stats = load_analysis_stats()
+        # Use a generic channel name since we don't have channel context here
+        channel_name = "transcript_analysis"
+        
+        if channel_name not in analysis_stats:
+            analysis_stats[channel_name] = {
+                "videos_analyzed": 0, 
+                "last_model": "pending", 
+                "last_prompt": prompt,
+                "last_video_id": v_id,
+                "last_checked": current_timestamp
+            }
+        else:
+            analysis_stats[channel_name]["last_prompt"] = prompt
+            analysis_stats[channel_name]["last_video_id"] = v_id
+            analysis_stats[channel_name]["last_checked"] = current_timestamp
+        save_analysis_stats(analysis_stats)
+        
+        logging.info(f"Saved transcript analysis prompt to JSON for video {v_id}")
+        
         analysis, used_model = model_manager.try_model_with_fallback(prompt)
         
         if analysis:
@@ -949,6 +972,19 @@ Provide a unified analysis covering:
     current_timestamp = time.time()
     
     analysis_stats = load_analysis_stats()
+    # Determine channel name from available data or use default
+    channel_name = "comprehensive_analysis"  # Default if we can't determine channel
+    
+    # Try to find channel name from video ID by checking which channel list contains it
+    for channel in CHANNELS:
+        try:
+            if v_id in [vid for vid in fetch_latest_videos([channel])]:
+                channel_name = channel
+                logging.info(f"Determined channel name as '{channel_name}' for video {v_id}")
+                break
+        except Exception as e:
+            logging.warning(f"Failed to check channel {channel} for video {v_id}: {e}")
+    
     if channel_name not in analysis_stats:
         analysis_stats[channel_name] = {
             "videos_analyzed": 0, 
@@ -962,6 +998,8 @@ Provide a unified analysis covering:
         analysis_stats[channel_name]["last_video_id"] = v_id
         analysis_stats[channel_name]["last_checked"] = current_timestamp
     save_analysis_stats(analysis_stats)
+    
+    logging.info(f"Saved comprehensive analysis prompt to JSON for video {v_id} (channel: {channel_name})")
     
     try:
         # Use ModelManager for intelligent model selection and fallback
@@ -982,15 +1020,6 @@ Provide a unified analysis covering:
         
         # Send comprehensive analysis to Discord
         if WEBHOOK:
-            # Find channel name from video URL by checking which channel list contains this video ID
-            channel_name = "Unknown Channel"
-            for channel in CHANNELS:
-                # This is a simplified approach - in a real implementation you might want to 
-                # store channel info when fetching videos
-                if v_id in [vid for vid in fetch_latest_videos([channel])]:
-                    channel_name = channel
-                    break
-            
             # Use Discord title from configuration with video title and ID
             discord_title = PROMPTS["discord_title"].format(title=title, v_id=v_id)
             
