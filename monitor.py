@@ -685,16 +685,20 @@ def analyze_video_comprehensive(v_id, title, comments_dict, video_stats, transcr
 Provide a unified analysis covering:
 
 **CONTENT SUMMARY:** Key topics, arguments, and narrative structure from the video transcript
+
 **AUDIENCE REACTION:** Comment sentiment, dominant themes, and public reception patterns  
+
 **CONTENT-RECEPTION ALIGNMENT:** How well the video content aligns with audience reactions
+
 **LEGAL ASSESSMENT:** Defamation risk assessment (always start with 'Sannolikheten är [hög/låg] för förtal')
+
 **MONITORING INSIGHTS:** Suggested tags and themes for monitoring purposes
 
 **FORMATTING:** 
 - Structure clearly with bold headings
 - Be concise but comprehensive
 - Only mention like ratio if below 90%
-- Add a line break (\n) between **Juridisk bedömning:** and **Sammanfattning:** sections
+- Include a blank line (\n\n) between each analysis section
 - Provide direct analysis without thinking blocks or meta-commentary
 """
     
