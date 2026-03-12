@@ -1,26 +1,47 @@
 {
   "language": "sv",
+  "ai_models": {
+    "primary": "qwen/qwen3-32b",
+    "fallback": ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"],
+    "models": {
+      "qwen/qwen3-32b": {
+        "provider": "groq", 
+        "tpd_limit": 500000,
+        "description": "Best for Swedish/English language accuracy"
+      },
+      "llama-3.1-8b-instant": {
+        "provider": "groq",
+        "tpd_limit": 500000,
+        "description": "Use only for bulk speed (less smart)"
+      },
+      "llama-3.3-70b-versatile": {
+        "provider": "groq",
+        "tpd_limit": 100000,
+        "description": "Legacy fallback model"
+      }
+    }
+  },
   "prompts": {
     "sv": {
-      "ai_summary": "Analysera följande kommentarer från YouTube-videon '{title}'. Skriv en koncis sammanfattning (cirka 3-4 meningar) av den allmänna tittarstämningen, de huvudsakliga ämnena som diskuteras och de övergripande åsikterna från publiken.\n\nKommentarer:\n{comments_string}\n\nVänligen tillhandahåll en sammanfattning som är neutral och inte tar ställning i ämnet. Avsluta med en sentimentklassificering: [POSITIV], [NEUTRAL], eller [NEGATIV].",
-      "discord_title": "🤖 AI Kommentaranalys {date}",
+      "ai_summary": "Du är en klinisk medieanalytiker. Leverera en rak och kompakt analys av videon \"{title}\". Var objektiv men 'hård'.\n\n**Instruktioner:**\n1. **Sammanfattning:** Max 2 meningar om den dominerande stämningen. Nämn ENDAST like/dislike-förhållandet om likes understiger 90%, och väv då in det organiskt för att förklara diskrepans eller förstärka kritiken. Om likes är 90% eller högre, ignorera siffran helt.\n2. **Juridisk bedömning:** Inled alltid med meningen 'Sannolikheten är [hög/låg] för förtal.' Följ upp med max en mening som konkret motiverar bedömningen (t.ex. förekomst av anklagelser om brott, grova förolämpningar eller koordinerade drev).\n\n**Formatering:**\n- Fetmarkera ENDAST de inledande orden (**Sammanfattning:** och **Juridisk bedömning:**).\n- Inga listor, inga rubriker för 'Tema' eller 'Ratio'.\n- Inga kursiveringar eller onödig utfyllnad.\n\n**Data:**\nKommentarer: {comments_string}",
+      "discord_title": "🤖 AI-Analys: {title}",
       "channel_field": "Kanal",
       "video_field": "Video"
     },
     "en": {
-      "ai_summary": "Analyze the following comments from the YouTube video '{title}'. Write a concise summary (around 3-4 sentences) of the general viewer sentiment, the main topics being discussed, and the overall opinions of the audience.\n\nComments:\n{comments_string}\n\nPlease provide a summary that is neutral and does not take a stance on the topic. End with a sentiment classification: [POSITIVE], [NEUTRAL], or [NEGATIVE].",
-      "discord_title": "🤖 AI Comment Analysis {date}",
+      "ai_summary": "You are a clinical media analyst. Provide a blunt and compact analysis of \"{title}\". Be objective and 'hard'.\n\n**Instructions:**\n1. **Summary:** Max 2 sentences on the dominant mood. ONLY mention the like/dislike ratio if likes are below 90%, weaving it in organically. If likes are 90% or higher, ignore the figure entirely.\n2. **Legal Assessment:** Always start with 'The probability is [high/low] for defamation.' Follow with max one sentence justifying the assessment (e.g., presence of criminal accusations, severe insults, or coordinated harassment).\n\n**Formatting:**\n- Bold ONLY the starting words (**Summary:** and **Legal Assessment:**).\n- No lists, no headings for 'Theme' or 'Ratio'.\n- No italics or unnecessary filler text.\n\n**Data:**\nComments: {comments_string}",
+      "discord_title": "🤖 AI Analysis: {title}",
       "channel_field": "Channel",
       "video_field": "Video"
     }
   },
   "settings": {
-    "max_comments": 150,
+    "max_comments": 200,
     "date_format": "%Y-%m-%d"
   },
   "colors": {
-    "positive": "0x00FF00",
-    "neutral": "0x3498DB", 
-    "negative": "0xFF0000"
+    "positive": "0x2ECC71",
+    "neutral": "0x3498DB",
+    "negative": "0xE74C3C"
   }
 }

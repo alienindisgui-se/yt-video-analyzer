@@ -7,7 +7,7 @@ import sys
 import logging
 import hashlib
 from dotenv import load_dotenv
-from google import genai
+from groq import Groq
 from playwright.sync_api import sync_playwright, TimeoutError
 
 # Load environment variables from .env file
@@ -22,7 +22,65 @@ CHANNELS = ['CarlFredrikAlexanderRask', 'ANJO1', 'MotVikten', 'Skuldis']
 STATE_FILE = "comment_state.json"
 CONFIG_FILE = "config.json"
 WEBHOOK = os.getenv("DISCORD_WEBHOOK")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
+class ModelManager:
+    """Manages AI model selection, fallbacks, and rate limiting"""
+    
+    def __init__(self, config):
+        self.config = config
+        self.ai_config = config.get('ai_models', {})
+        self.primary_model = self.ai_config.get('primary', 'llama-3.3-70b-versatile')
+        self.fallback_models = self.ai_config.get('fallback', [])
+        self.available_models = self.ai_config.get('models', {})
+        self.client = Groq(api_key=GROQ_API_KEY)
+        
+    def get_model_for_request(self):
+        """Select the best model for current request"""
+        # Try primary model first
+        if self.primary_model in self.available_models:
+            return self.primary_model
+        
+        # Fallback to available models
+        for model in self.fallback_models:
+            if model in self.available_models:
+                return model
+                
+        # Ultimate fallback to legacy model
+        logging.warning("No configured models available, falling back to llama-3.3-70b-versatile")
+        return "llama-3.3-70b-versatile"
+    
+    def try_model_with_fallback(self, prompt, max_retries=3):
+        """Try to generate summary with fallback models"""
+        models_to_try = [self.primary_model] + self.fallback_models
+        
+        # Add legacy fallback if not in list
+        if "llama-3.3-70b-versatile" not in models_to_try:
+            models_to_try.append("llama-3.3-70b-versatile")
+        
+        for attempt, model_name in enumerate(models_to_try):
+            try:
+                logging.info(f"Attempting to use model: {model_name} (attempt {attempt + 1}/{len(models_to_try)})")
+                
+                chat_completion = self.client.chat.completions.create(
+                    messages=[{"role": "user", "content": prompt}],
+                    model=model_name,
+                )
+                
+                summary = chat_completion.choices[0].message.content.strip()
+                logging.info(f"Successfully generated summary using model: {model_name}")
+                return summary, model_name
+                
+            except Exception as e:
+                logging.warning(f"Model {model_name} failed: {str(e)}")
+                if attempt < len(models_to_try) - 1:
+                    logging.info(f"Trying next model...")
+                    time.sleep(1)  # Brief delay before retry
+                else:
+                    logging.error("All models failed to generate summary")
+                    raise e
+        
+        return None, None
 
 # Load configuration
 def load_config():
@@ -44,6 +102,11 @@ def load_config():
             "settings": {
                 "max_comments": 150,
                 "date_format": "%Y-%m-%d"
+            },
+            "ai_models": {
+                "primary": "llama-3.3-70b-versatile",
+                "fallback": [],
+                "models": {}
             }
         }
 
@@ -57,6 +120,9 @@ COLORS = CONFIG.get("colors", {
     "negative": "0xFF0000"
 })
 
+# Initialize Model Manager
+model_manager = ModelManager(CONFIG)
+
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
@@ -67,23 +133,50 @@ def generate_persistent_id(author, text):
     raw_str = f"{author}|{text}"
     return hashlib.md5(raw_str.encode('utf-8')).hexdigest()
 
-def detect_sentiment(summary_text):
-    """Detect sentiment from AI summary based on classification tags"""
-    summary_lower = summary_text.lower()
+def get_gradient_color(like_ratio):
+    """Generate a color gradient from red to green based on like ratio (0-100)"""
+    # Ensure like_ratio is within 0-100 range
+    ratio = max(0, min(100, like_ratio))
     
-    # Check for sentiment classification markers
-    if "[positiv]" in summary_lower or "[positive]" in summary_lower:
-        return "positive"
-    elif "[negativ]" in summary_lower or "[negative]" in summary_lower:
-        return "negative"
-    else:
-        return "neutral"
+    # Red (255, 0, 0) at 0% to Green (0, 255, 0) at 100%
+    red = int(255 * (1 - ratio / 100))
+    green = int(255 * (ratio / 100))
+    blue = 0
+    
+    # Convert to hex color string
+    hex_color = f"{red:02x}{green:02x}{blue:02x}"
+    return int(hex_color, 16)
 
-def get_embed_color(sentiment):
-    """Get hex color code based on sentiment"""
-    color_str = COLORS.get(sentiment, COLORS["neutral"])
-    # Convert string hex to integer
-    return int(color_str, 16)
+def get_thumbnail_url(v_id):
+    """Get YouTube thumbnail URL for a video"""
+    return f"https://img.youtube.com/vi/{v_id}/maxresdefault.jpg"
+
+def get_video_stats(v_id):
+    """Fetch likes and dislikes using returnyoutubedislike.com API"""
+    try:
+        api_url = f"https://returnyoutubedislikeapi.com/votes?videoId={v_id}"
+        response = requests.get(api_url, timeout=10000)
+        if response.status_code == 200:
+            data = response.json()
+            likes = data.get('likes', 0)
+            dislikes = data.get('dislikes', 0)
+            views = data.get('viewCount', 0)
+            
+            # Calculate engagement ratio
+            total_reactions = likes + dislikes
+            like_ratio = (likes / total_reactions * 100) if total_reactions > 0 else 0
+            
+            logging.info(f"Fetched video stats - Likes: {likes:,}, Dislikes: {dislikes:,}, Like Ratio: {like_ratio:.1f}%")
+            return {
+                'likes': likes,
+                'dislikes': dislikes,
+                'views': views,
+                'like_ratio': like_ratio
+            }
+    except Exception as e:
+        logging.warning(f"Failed to fetch video stats from API: {e}")
+    
+    return {'likes': 0, 'dislikes': 0, 'views': 0, 'like_ratio': 0}
 
 def fetch_latest_videos(channels):
     latest_videos = []
@@ -170,10 +263,13 @@ def get_yt_data(v_id, deep_scrape=False):
                 page.wait_for_timeout(3000)
             except TimeoutError:
                 logging.warning("Comments section did not attach in time. Video might have comments disabled.")
-                return None, None, None
+                return None, None, None, None
 
             title_elem = page.locator('h1.ytd-watch-metadata yt-formatted-string')
             title = title_elem.text_content().strip() if title_elem.count() > 0 else 'Unknown'
+            
+            # Fetch video stats
+            video_stats = get_video_stats(v_id)
             
             ui_count = 0
             # [Count extraction logic preserved for brevity]
@@ -226,23 +322,20 @@ def get_yt_data(v_id, deep_scrape=False):
                 if ui_count == 0 and len(comments) > 0:
                     ui_count = len(comments)
                     
-            return ui_count, comments, title
+            return ui_count, comments, title, video_stats
             
         except Exception as e:
             logging.error(f"Scrape failed for {v_id}: {e}")
-            return None, None, None
+            return None, None, None, None
         finally:
             browser.close()
 
-def summarize_comments_with_ai(title, comments_dict, v_id):
-    if not GEMINI_API_KEY:
-        logging.warning("No GEMINI_API_KEY found. Skipping AI summary.")
+def summarize_comments_with_ai(title, comments_dict, v_id, video_stats):
+    if not GROQ_API_KEY:
+        logging.warning("No GROQ_API_KEY found. Skipping AI summary.")
         return
 
     logging.info(f"Generating AI summary for video: {title}")
-    
-    # Create client - automatically detects GEMINI_API_KEY from environment
-    client = genai.Client()
     
     # Extract comment texts. Limit to configured max comments to avoid hitting free-tier token limits easily.
     texts = [c['t'] for c in comments_dict.values() if not c.get('deleted', False)]
@@ -254,30 +347,28 @@ def summarize_comments_with_ai(title, comments_dict, v_id):
     sample_texts = texts[:max_comments]
     comments_string = "\n".join([f"- {t}" for t in sample_texts])
     
+    # Add video stats to the prompt for better context
+    stats_info = f"\n\nVideo Stats: {video_stats['likes']:,} likes, {video_stats['dislikes']:,} dislikes ({video_stats['like_ratio']:.1f}% like ratio)"
+    
     # Use prompt from configuration
     prompt = PROMPTS["ai_summary"].format(
         title=title,
-        comments_string=comments_string
+        comments_string=comments_string + stats_info
     )
 
     try:
-        # Use the new API with gemini-3-flash-preview for free tier
-        response = client.models.generate_content(
-            model="gemini-3-flash-preview",
-            contents=prompt
-        )
-        summary = response.text.strip()
-        logging.info(f"AI Summary generated:\n{summary}")
+        # Use ModelManager for intelligent model selection and fallback
+        summary, used_model = model_manager.try_model_with_fallback(prompt)
         
-        # Detect sentiment from summary
-        sentiment = detect_sentiment(summary)
-        embed_color = get_embed_color(sentiment)
-        logging.info(f"Detected sentiment: {sentiment}, Color: {hex(embed_color)}")
+        if not summary:
+            logging.error("Failed to generate AI summary with all available models")
+            return
+            
+        logging.info(f"AI Summary generated using model '{used_model}':\n{summary}")
         
-        # Clean up summary by removing sentiment classification tags
-        clean_summary = summary
-        for tag in ["[POSITIV]", "[POSITIVE]", "[NEUTRAL]", "[NEGATIV]", "[NEGATIVE]"]:
-            clean_summary = clean_summary.replace(tag, "").strip()
+        # Generate embed color based on like ratio gradient
+        embed_color = get_gradient_color(video_stats['like_ratio'])
+        logging.info(f"Generated gradient color: {hex(embed_color)} for like ratio: {video_stats['like_ratio']:.1f}%")
         
         # Send summary to Discord
         if WEBHOOK:
@@ -294,18 +385,24 @@ def summarize_comments_with_ai(title, comments_dict, v_id):
                     channel_name = channel
                     break
             
-            # Use Discord title from configuration
-            discord_title = PROMPTS["discord_title"].format(date=current_date)
+            # Use Discord title from configuration with video title and ID
+            discord_title = PROMPTS["discord_title"].format(title=title, v_id=v_id)
+            
+            # Get thumbnail URL
+            thumbnail_url = get_thumbnail_url(v_id)
             
             payload = {
                 "embeds": [{
                     "title": discord_title,
-                    "description": clean_summary,
                     "color": embed_color,
+                    "image": {
+                        "url": thumbnail_url
+                    },
                     "fields": [
                         {"name": PROMPTS["channel_field"], "value": channel_name, "inline": True},
-                        {"name": PROMPTS["video_field"], "value": f"[{title}](https://www.youtube.com/watch?v={v_id})", "inline": False}
-                    ]
+                        {"name": PROMPTS["video_field"], "value": f"[{title}](https://www.youtube.com/watch?v={v_id})", "inline": False},
+                    ],
+                    "description": summary
                 }]
             }
             requests.post(WEBHOOK, json=payload)
@@ -334,7 +431,7 @@ if __name__ == "__main__":
     # 3. Process each video
     for v_id in video_ids:
         logging.info(f"Processing video {v_id}.")
-        _, current_comments, title = get_yt_data(v_id, deep_scrape=True)
+        _, current_comments, title, video_stats = get_yt_data(v_id, deep_scrape=True)
         
         if current_comments is None:
             logging.warning(f"Skipping video {v_id} due to scraping failure.")
@@ -372,7 +469,7 @@ if __name__ == "__main__":
 
         # 4. Trigger the AI to summarize the comment section
         # We only pass the current live comments to get the real-time sentiment
-        summarize_comments_with_ai(title, current_comments, v_id)
+        summarize_comments_with_ai(title, current_comments, v_id, video_stats)
         
         # Save history
         history[v_id] = {
