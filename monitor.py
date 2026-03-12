@@ -828,7 +828,7 @@ def summarize_comments_with_ai(title, comments_dict, v_id, video_stats):
         
         # Create footer with analysis count and model
         videos_analyzed = analysis_stats[channel_name]["videos_analyzed"]
-        footer_text = f"**{videos_analyzed}** videos from @{channel_name} has been analysed. This analysis was made using __{used_model}__"
+        footer_text = f"{videos_analyzed} videos from @{channel_name} has been analysed. This analysis was made using {used_model}"
         
         # Send summary to Discord
         if WEBHOOK:
