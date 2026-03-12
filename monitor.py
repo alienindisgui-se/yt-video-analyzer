@@ -16,6 +16,21 @@ import google.genai as genai
 # Load environment variables from .env file
 load_dotenv()
 
+# Validate required environment variables
+WEBHOOK = os.getenv("DISCORD_WEBHOOK")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+if not GROQ_API_KEY:
+    logging.error("GROQ_API_KEY environment variable is required but not set")
+    sys.exit(1)
+
+if not WEBHOOK:
+    logging.warning("DISCORD_WEBHOOK environment variable not set - Discord notifications will be disabled")
+
+if not GEMINI_API_KEY:
+    logging.warning("GEMINI_API_KEY environment variable not set - Gemini fallback will be unavailable")
+
 # Setup logging and encoding
 sys.stdout.reconfigure(encoding='utf-8')
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -26,9 +41,6 @@ CHANNELS = ['CarlFredrikAlexanderRask', 'ANJO1', 'MotVikten', 'Skuldis']
 STATE_FILE = "comment_state.json"
 ANALYSIS_STATS_FILE = "analysis_stats.json"  # Track video analysis counts per channel
 CONFIG_FILE = "config.json"
-WEBHOOK = os.getenv("DISCORD_WEBHOOK")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 def estimate_tokens(text, content_type="general"):
     """
@@ -335,16 +347,18 @@ SETTINGS = CONFIG["settings"]
 # Initialize Model Manager
 model_manager = ModelManager(CONFIG)
 
-# Initialize Whisper model for transcription fallback
-WHISPER_MODEL = None
-def get_whisper_model():
-    global WHISPER_MODEL
-    if WHISPER_MODEL is None:
-        model_name = SETTINGS.get("whisper_model", "base")
-        logging.info(f"Loading Whisper model: {model_name}")
-        WHISPER_MODEL = whisper.load_model(model_name)
-        logging.info(f"Whisper model {model_name} loaded successfully")
-    return WHISPER_MODEL
+def load_video_cache():
+    """Load video cache from fetch_videos.py output"""
+    try:
+        with open("video_cache.json", "r", encoding='utf-8') as f:
+            cache_data = json.load(f)
+            return cache_data.get("videos", [])
+    except FileNotFoundError:
+        logging.warning("Video cache not found. Run fetch_videos.py first.")
+        return []
+    except Exception as e:
+        logging.error(f"Failed to load video cache: {e}")
+        return []
 
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
@@ -562,23 +576,92 @@ def generate_persistent_id(author, text):
     return hashlib.md5(raw_str.encode('utf-8')).hexdigest()
 
 def load_analysis_stats():
-    """Load analysis statistics from JSON file"""
-    try:
-        with open(ANALYSIS_STATS_FILE, "r", encoding='utf-8') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return {}
-    except Exception as e:
-        logging.warning(f"Failed to load analysis stats: {e}")
-        return {}
+    """Load analysis statistics from JSON file with simple retry mechanism"""
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            with open(ANALYSIS_STATS_FILE, "r", encoding='utf-8') as f:
+                data = json.load(f)
+                # Ensure new structure exists
+                for channel in CHANNELS:
+                    if channel not in data:
+                        data[channel] = {"videos": []}
+                    elif "videos" not in data[channel]:
+                        # Migrate old structure to new
+                        old_data = data[channel]
+                        data[channel] = {"videos": []}
+                        if "videos_analyzed" in old_data:
+                            # Create a placeholder video entry for migration
+                            data[channel]["videos"].append({
+                                "video_id": old_data.get("last_video_id", ""),
+                                "title": "Migrated Analysis",
+                                "analysis_date": old_data.get("last_checked", time.time()),
+                                "analyses": {
+                                    "comment_review": {
+                                        "input_prompt": old_data.get("last_prompt", ""),
+                                        "output": "[Migrated output]",
+                                        "model": old_data.get("last_model", ""),
+                                        "timestamp": old_data.get("last_checked", time.time())
+                                    }
+                                }
+                            })
+                return data
+        except FileNotFoundError:
+            # Return empty structure with all channels
+            return {channel: {"videos": []} for channel in CHANNELS}
+        except (json.JSONDecodeError, IOError) as e:
+            if attempt == max_retries - 1:
+                logging.warning(f"Failed to load analysis stats after {max_retries} attempts: {e}")
+                return {channel: {"videos": []} for channel in CHANNELS}
+            logging.debug(f"Retry {attempt + 1} for loading analysis stats: {e}")
+            time.sleep(0.1 * (attempt + 1))
+    return {channel: {"videos": []} for channel in CHANNELS}
 
 def save_analysis_stats(stats):
-    """Save analysis statistics to JSON file"""
-    try:
-        with open(ANALYSIS_STATS_FILE, "w", encoding='utf-8') as f:
-            json.dump(stats, f, indent=2, ensure_ascii=False)
-    except Exception as e:
-        logging.error(f"Failed to save analysis stats: {e}")
+    """Save analysis statistics to JSON file with retry mechanism"""
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            with open(ANALYSIS_STATS_FILE, "w", encoding='utf-8') as f:
+                json.dump(stats, f, indent=2, ensure_ascii=False)
+            return
+        except (IOError, OSError) as e:
+            if attempt == max_retries - 1:
+                logging.error(f"Failed to save analysis stats after {max_retries} attempts: {e}")
+                return
+            logging.debug(f"Retry {attempt + 1} for saving analysis stats: {e}")
+            time.sleep(0.1 * (attempt + 1))
+
+def find_or_create_video(stats, channel_name, video_id, title):
+    """Find existing video or create new entry in the videos array"""
+    channel_data = stats.get(channel_name, {"videos": []})
+    
+    # Find existing video
+    for video in channel_data["videos"]:
+        if video["video_id"] == video_id:
+            return video
+    
+    # Create new video entry
+    new_video = {
+        "video_id": video_id,
+        "title": title,
+        "analysis_date": time.time(),
+        "analyses": {}
+    }
+    channel_data["videos"].append(new_video)
+    return new_video
+
+def add_analysis_to_video(video, analysis_type, input_prompt, output, model):
+    """Add analysis entry to a video's analyses"""
+    if "analyses" not in video:
+        video["analyses"] = {}
+    
+    video["analyses"][analysis_type] = {
+        "input_prompt": input_prompt,
+        "output": output,
+        "model": model,
+        "timestamp": time.time()
+    }
 
 def get_yt_data(v_id, deep_scrape=False):
     user_agent = random.choice(USER_AGENTS)
@@ -640,7 +723,7 @@ def get_yt_data(v_id, deep_scrape=False):
                         if (items.length > 1) items[1].click();
                     }""")
                     page.wait_for_timeout(3000)
-                    logging.info("Sorted comments to 'Newest first' (language-independent).")
+                    # logging.info("Sorted comments to 'Newest first' (language-independent).")
                 except Exception as e:
                     logging.warning(f"Failed to sort comments: {e}. Proceeding with default sort.")
 
@@ -748,7 +831,7 @@ def get_yt_data(v_id, deep_scrape=False):
             # Also run comprehensive analysis
             comprehensive_analysis = analyze_video_comprehensive(v_id, title, comments, video_stats, transcript_text)
             
-            return ui_count, comments, title, video_stats, transcript_text, ai_analysis, comprehensive_analysis
+            return ui_count, comments, title, video_stats, transcript_text, ai_analysis
             
         except Exception as e:
             logging.error(f"Scrape failed for {v_id}: {e}")
@@ -762,8 +845,10 @@ def get_transcript_and_analysis(v_id, title):
     import os
     
     full_text = None
-    temp_dir = tempfile.gettempdir()
-    audio_filepath = os.path.join(temp_dir, f"{v_id}.m4a")
+    
+    # Use secure temporary file with random name
+    with tempfile.NamedTemporaryFile(suffix='.m4a', delete=False) as temp_file:
+        audio_filepath = temp_file.name
     
     # We grab the worst audio quality to ensure blazing fast downloads 
     # and to stay under Groq's 25MB audio file limit.
@@ -794,6 +879,7 @@ def get_transcript_and_analysis(v_id, title):
             with yt_dlp.YoutubeDL(trim_opts) as trim_ydl:
                 trim_ydl.download([f"https://www.youtube.com/watch?v={v_id}"])
             
+            # Replace original with trimmed version
             os.remove(audio_filepath)
             audio_filepath = trimmed_filepath
             logging.info("Audio trimmed successfully using yt-dlp.")
@@ -815,6 +901,7 @@ def get_transcript_and_analysis(v_id, title):
         logging.info(f"Audio successfully transcribed! ({len(full_text)} characters)")
         
         # Save transcription to JSON file along with video ID
+        current_timestamp = time.time()
         transcription_data = {
             "video_id": v_id,
             "title": title,
@@ -875,35 +962,34 @@ def get_transcript_and_analysis(v_id, title):
             f"Transcript Summary:\n{summarized_transcript}"
         )
         
-        # Store the prompt in analysis stats before making API call
-        import time
+        # Store prompt and analysis in new structure
         current_timestamp = time.time()
         
         analysis_stats = load_analysis_stats()
         # Use a generic channel name since we don't have channel context here
         channel_name = "transcript_analysis"
         
-        if channel_name not in analysis_stats:
-            analysis_stats[channel_name] = {
-                "videos_analyzed": 0, 
-                "last_model": "pending", 
-                "last_prompt": prompt,
-                "last_video_id": v_id,
-                "last_checked": current_timestamp
-            }
-        else:
-            analysis_stats[channel_name]["last_prompt"] = prompt
-            analysis_stats[channel_name]["last_video_id"] = v_id
-            analysis_stats[channel_name]["last_checked"] = current_timestamp
+        # Find or create video entry
+        video_entry, channel_data = find_or_create_video(analysis_stats, channel_name, v_id, title)
+        
+        # Add transcription analysis
+        add_analysis_to_video(video_entry, "transcription", prompt, full_text if full_text else "No transcription available", "whisper-large-v2")
+        
+        # Save updated stats
         save_analysis_stats(analysis_stats)
         
-        logging.info(f"Saved transcript analysis prompt to JSON for video {v_id}")
+        logging.info(f"Saved transcript analysis to JSON for video {v_id}")
         
         analysis, used_model = model_manager.try_model_with_fallback(prompt)
         
         if analysis:
             cleaned_analysis = clean_ai_output(analysis)
             logging.info(f"AI analysis completed for {v_id} using model '{used_model}'.")
+            
+            # Update the video entry with actual analysis output
+            add_analysis_to_video(video_entry, "transcription", prompt, cleaned_analysis, used_model)
+            save_analysis_stats(analysis_stats)
+            
             return full_text, cleaned_analysis
         else:
             logging.warning(f"AI analysis failed for {v_id} with all available models.")
@@ -998,7 +1084,7 @@ Provide a unified analysis covering:
     final_tokens = estimate_tokens(prompt, "prompt")
     logging.info(f"Final comprehensive prompt size: {final_tokens}/{max_tokens} tokens ({final_tokens/max_tokens*100:.1f}%)")
     
-    # Store the prompt in analysis stats immediately after creation
+    # Store prompt in analysis stats immediately after creation
     import time
     current_timestamp = time.time()
     
@@ -1006,28 +1092,37 @@ Provide a unified analysis covering:
     # Determine channel name from available data or use default
     channel_name = "comprehensive_analysis"  # Default if we can't determine channel
     
-    # Try to find channel name from video ID by checking which channel list contains it
+    # Use cached video mapping to determine channel name
+    cached_videos = load_video_cache()
+    video_to_channel = {}
+    
+    # Create reverse mapping from cache
     for channel in CHANNELS:
         try:
-            if v_id in [vid for vid in fetch_latest_videos([channel])]:
-                channel_name = channel
-                logging.info(f"Determined channel name as '{channel_name}' for video {v_id}")
-                break
+            # Check if we have recent cache data for this channel
+            channel_cache_file = f"{channel}_videos.json"
+            if os.path.exists(channel_cache_file):
+                with open(channel_cache_file, 'r', encoding='utf-8') as f:
+                    channel_videos = json.load(f).get("videos", [])
+                    for video in channel_videos:
+                        video_to_channel[video.get("video_id", "")] = channel
         except Exception as e:
-            logging.warning(f"Failed to check channel {channel} for video {v_id}: {e}")
+            logging.warning(f"Failed to load channel cache for {channel}: {e}")
     
-    if channel_name not in analysis_stats:
-        analysis_stats[channel_name] = {
-            "videos_analyzed": 0, 
-            "last_model": "pending", 
-            "last_prompt": prompt,
-            "last_video_id": v_id,
-            "last_checked": current_timestamp
-        }
+    # Determine channel from cached data
+    channel_name = video_to_channel.get(v_id, "Unknown Channel")
+    if channel_name != "Unknown Channel":
+        logging.info(f"Using cached channel name '{channel_name}' for video {v_id}")
     else:
-        analysis_stats[channel_name]["last_prompt"] = prompt
-        analysis_stats[channel_name]["last_video_id"] = v_id
-        analysis_stats[channel_name]["last_checked"] = current_timestamp
+        logging.warning(f"Video {v_id} not found in any channel cache")
+    
+    # Find or create video entry
+    video_entry = find_or_create_video(analysis_stats, channel_name, v_id, title)
+    
+    # Add comprehensive analysis
+    add_analysis_to_video(video_entry, "comprehensive", prompt, "[Analysis pending]", "pending")
+    
+    # Save updated stats
     save_analysis_stats(analysis_stats)
     
     logging.info(f"Saved comprehensive analysis prompt to JSON for video {v_id} (channel: {channel_name})")
@@ -1040,8 +1135,12 @@ Provide a unified analysis covering:
             logging.error("Failed to generate comprehensive AI analysis with all available models")
             return None
         
-        # Clean the AI output to remove any unwanted formatting
+        # Clean AI output to remove any unwanted formatting
         cleaned_analysis = clean_ai_output(analysis)
+        
+        # Update the video entry with actual analysis output
+        add_analysis_to_video(video_entry, "comprehensive", prompt, cleaned_analysis, used_model)
+        save_analysis_stats(analysis_stats)
         
         logging.info(f"Comprehensive AI analysis completed using model '{used_model}'")
         
@@ -1077,10 +1176,14 @@ Provide a unified analysis covering:
         logging.error(f"Failed to generate comprehensive AI analysis: {e}")
 
 def summarize_comments_with_ai(title, comments_dict, v_id, video_stats):
+    """Generate AI summary of comments and send to Discord webhook"""
+    # Load analysis stats
+    analysis_stats = load_analysis_stats()
+    
     if not GROQ_API_KEY:
         logging.warning("No GROQ_API_KEY found. Skipping AI summary.")
         return
-
+    
     logging.info(f"Generating AI summary for video: {title}")
     
     # Get the model with highest capacity for this analysis
@@ -1138,39 +1241,41 @@ def summarize_comments_with_ai(title, comments_dict, v_id, video_stats):
         
         # Determine channel name (used for tracking even without webhook)
         channel_name = "Unknown Channel"
+        cached_videos = load_video_cache()
+        video_to_channel = {}
+        
+        # Create reverse mapping from cache
         for channel in CHANNELS:
-            # This is a simplified approach - in a real implementation you might want to 
-            # store channel info when fetching videos
             try:
-                if v_id in [vid for vid in fetch_latest_videos([channel])]:
-                    channel_name = channel
-                    break
+                channel_cache_file = f"{channel}_videos.json"
+                if os.path.exists(channel_cache_file):
+                    with open(channel_cache_file, 'r', encoding='utf-8') as f:
+                        channel_videos = json.load(f).get("videos", [])
+                        for video in channel_videos:
+                            video_to_channel[video.get("video_id", "")] = channel
             except Exception as e:
-                logging.warning(f"Failed to check channel {channel} for video {v_id}: {e}")
+                logging.warning(f"Failed to load channel cache for {channel}: {e}")
+    
+        # Determine channel from cached data
+        channel_name = video_to_channel.get(v_id, "Unknown Channel")
+        if channel_name != "Unknown Channel":
+            logging.info(f"Using cached channel name '{channel_name}' for video {v_id}")
+        else:
+            logging.warning(f"Video {v_id} not found in any channel cache")
         
-        # Track analysis count and prompt
-        import time
-        current_timestamp = time.time()
+        # Find or create video entry
+        video_entry = find_or_create_video(analysis_stats, channel_name, v_id, title)
         
-        analysis_stats = load_analysis_stats()
-        if channel_name not in analysis_stats:
-            analysis_stats[channel_name] = {
-                "videos_analyzed": 0, 
-                "last_model": used_model, 
-                "last_prompt": prompt,
-                "last_video_id": v_id,
-                "last_checked": current_timestamp
-            }
-        analysis_stats[channel_name]["videos_analyzed"] += 1
-        analysis_stats[channel_name]["last_model"] = used_model
-        analysis_stats[channel_name]["last_prompt"] = prompt
-        analysis_stats[channel_name]["last_video_id"] = v_id
-        analysis_stats[channel_name]["last_checked"] = current_timestamp
+        # Add comment review analysis
+        add_analysis_to_video(video_entry, "comment_review", prompt, cleaned_summary, "model")
+        
+        # Save updated stats
         save_analysis_stats(analysis_stats)
         
         # Create footer with analysis count and model
-        videos_analyzed = analysis_stats[channel_name]["videos_analyzed"]
-        footer_text = f"{videos_analyzed} videos from @{channel_name} has been analysed. This analysis was made using {used_model}"
+        channel_data = analysis_stats.get(channel_name, {"videos": []})
+        videos_count = len(channel_data["videos"])
+        footer_text = f"{videos_count} videos from @{channel_name} has been analysed. This analysis was made using {used_model}"
         
         # Send summary to Discord
         if WEBHOOK:
@@ -1205,15 +1310,15 @@ def summarize_comments_with_ai(title, comments_dict, v_id, video_stats):
 
 # --- MAIN LOGIC ---
 if __name__ == "__main__":
-    logging.info("Starting merged YouTube monitor...")
+    logging.info("Starting YouTube video analyzer...")
     
-    # 1. Fetch latest videos directly into memory
-    video_ids = fetch_latest_videos(CHANNELS)
+    # 1. Load cached videos (avoid Playwright conflicts)
+    video_ids = load_video_cache()
     if not video_ids:
-        logging.warning("No videos fetched. Exiting.")
-        sys.exit()
+        logging.error("No video cache found. Please run fetch_videos.py first.")
+        sys.exit(1)
     
-    logging.info(f"Monitoring videos: {video_ids}")
+    logging.info(f"Using cached videos: {video_ids}")
     
     # 2. Load historical state
     history = {}
@@ -1272,8 +1377,8 @@ if __name__ == "__main__":
         #     for d in deletions:
         #         send_deletion_alert(d['a'], d['t'], v_id, d.get('ts_posted', time.time()), time.time(), perc, title)
 
-        # 4. Trigger the AI to summarize the comment section
-        # We only pass the current live comments to get the real-time sentiment
+        # 4. Trigger AI to summarize comment section
+        # We only pass current live comments to get real-time sentiment
         summarize_comments_with_ai(title, current_comments, v_id, video_stats)
         
         # Save history
@@ -1290,4 +1395,4 @@ if __name__ == "__main__":
     with open(STATE_FILE, "w", encoding='utf-8') as f:
         json.dump(history, f, indent=2, ensure_ascii=False)
     
-    logging.info("Monitoring complete and state saved.")
+    logging.info("Analysis complete and state saved.")
