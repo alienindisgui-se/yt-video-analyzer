@@ -745,7 +745,10 @@ def get_yt_data(v_id, deep_scrape=False):
             # Get transcript and analysis
             transcript_text, ai_analysis = get_transcript_and_analysis(v_id, title)
             
-            return ui_count, comments, title, video_stats, transcript_text, ai_analysis
+            # Also run comprehensive analysis
+            comprehensive_analysis = analyze_video_comprehensive(v_id, title, comments, video_stats, transcript_text)
+            
+            return ui_count, comments, title, video_stats, transcript_text, ai_analysis, comprehensive_analysis
             
         except Exception as e:
             logging.error(f"Scrape failed for {v_id}: {e}")
