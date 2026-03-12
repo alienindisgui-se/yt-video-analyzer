@@ -124,6 +124,42 @@ USER_AGENTS = [
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 ]
 
+def clean_ai_output(text):
+    """Clean AI output to remove unwanted formatting and think blocks"""
+    if not text:
+        return text
+    
+    # Remove code blocks completely
+    import re
+    # Remove all content between triple backticks
+    text = re.sub(r'```.*?```', '', text, flags=re.DOTALL)
+    # Remove all content between single backticks
+    text = re.sub(r'`.*?`', '', text, flags=re.DOTALL)
+    
+    # Split into lines and process
+    lines = text.split('\n')
+    cleaned_lines = []
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        
+        # Skip lines that look like AI reasoning/thinking
+        if any(keyword in line.lower() for keyword in [
+            'okay, let\'s start', 'alright, let\'s tackle', 'let me think', 
+            'first, i need to', 'next, i should', 'finally', 'in conclusion',
+            'step by step', 'breaking this down', 'analysis:', 'thinking:'
+        ]):
+            continue
+        
+        cleaned_lines.append(line)
+    
+    # Rejoin and clean up
+    cleaned_text = '\n'.join(cleaned_lines)
+    
+    return cleaned_text.strip()
+
 def generate_persistent_id(author, text):
     raw_str = f"{author}|{text}"
     return hashlib.md5(raw_str.encode('utf-8')).hexdigest()
@@ -358,8 +394,11 @@ def summarize_comments_with_ai(title, comments_dict, v_id, video_stats):
         if not summary:
             logging.error("Failed to generate AI summary with all available models")
             return
-            
-        logging.info(f"AI Summary generated using model '{used_model}':\n{summary}")
+        
+        # Clean the AI output to remove any unwanted formatting
+        cleaned_summary = clean_ai_output(summary)
+        
+        logging.info(f"AI Summary generated using model '{used_model}':\n{cleaned_summary}")
         
         # Generate embed color based on like ratio gradient
         embed_color = get_gradient_color(video_stats['like_ratio'])
@@ -393,7 +432,7 @@ def summarize_comments_with_ai(title, comments_dict, v_id, video_stats):
                         {"name": PROMPTS["channel_field"], "value": channel_name, "inline": True},
                         {"name": PROMPTS["video_field"], "value": f"[{title}](https://www.youtube.com/watch?v={v_id})", "inline": False},
                     ],
-                    "description": summary
+                    "description": cleaned_summary
                 }]
             }
             requests.post(WEBHOOK, json=payload)
