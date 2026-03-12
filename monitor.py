@@ -811,6 +811,34 @@ def get_transcript_and_analysis(v_id, title):
         full_text = transcription
         logging.info(f"Audio successfully transcribed! ({len(full_text)} characters)")
         
+        # Save transcription to JSON file along with video ID
+        transcription_data = {
+            "video_id": v_id,
+            "title": title,
+            "transcription": full_text,
+            "character_count": len(full_text),
+            "timestamp": current_timestamp
+        }
+        
+        # Save to separate transcription file
+        transcription_file = "transcriptions.json"
+        try:
+            if os.path.exists(transcription_file):
+                with open(transcription_file, 'r', encoding='utf-8') as f:
+                    existing_data = json.load(f)
+            else:
+                existing_data = {}
+            
+            existing_data[v_id] = transcription_data
+            
+            with open(transcription_file, 'w', encoding='utf-8') as f:
+                json.dump(existing_data, f, indent=2, ensure_ascii=False)
+            
+            logging.info(f"Transcription saved to {transcription_file} for video {v_id}")
+            
+        except Exception as save_e:
+            logging.warning(f"Failed to save transcription to JSON: {save_e}")
+        
     except Exception as e:
         error_msg = str(e).lower()
         if "429" in error_msg or "rate limit" in error_msg or "rate_limit_exceeded" in error_msg:
