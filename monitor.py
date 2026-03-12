@@ -9,6 +9,7 @@ import hashlib
 from dotenv import load_dotenv
 from groq import Groq
 from playwright.sync_api import sync_playwright, TimeoutError
+import yt_dlp
 
 # Load environment variables from .env file
 load_dotenv()
@@ -51,11 +52,31 @@ class ModelManager:
         return "llama-3.3-70b-versatile"
     
     def try_model_with_fallback(self, prompt, max_retries=3):
-        """Try to generate summary with fallback models"""
-        models_to_try = [self.primary_model] + self.fallback_models
+        """Try to generate summary with fallback models, prioritizing higher token limits"""
+        # Sort models by estimated token capacity (higher limits first)
+        models_by_capacity = [
+            ("llama-3.3-70b-versatile", 12000),  # Highest capacity
+            ("qwen/qwen3-32b", 6000),
+            ("llama-3.1-8b-instant", 6000),
+        ]
         
-        # Add legacy fallback if not in list
-        if "llama-3.3-70b-versatile" not in models_to_try:
+        # Add primary and fallback models in capacity order
+        models_to_try = []
+        seen = set()
+        
+        for model_name, capacity in models_by_capacity:
+            if model_name in self.available_models and model_name not in seen:
+                models_to_try.append(model_name)
+                seen.add(model_name)
+        
+        # Add any remaining available models
+        for model in self.fallback_models:
+            if model not in seen and model in self.available_models:
+                models_to_try.append(model)
+                seen.add(model)
+        
+        # Ultimate fallback
+        if "llama-3.3-70b-versatile" not in models_to_try and "llama-3.3-70b-versatile" in self.available_models:
             models_to_try.append("llama-3.3-70b-versatile")
         
         for attempt, model_name in enumerate(models_to_try):
@@ -72,7 +93,12 @@ class ModelManager:
                 return summary, model_name
                 
             except Exception as e:
-                logging.warning(f"Model {model_name} failed: {str(e)}")
+                error_msg = str(e).lower()
+                if "413" in error_msg or "payload too large" in error_msg or "tokens" in error_msg:
+                    logging.warning(f"Model {model_name} failed: Request too large ({str(e)[:100]}...). Content may be too long - consider summarization.")
+                else:
+                    logging.warning(f"Model {model_name} failed: {str(e)}")
+                
                 if attempt < len(models_to_try) - 1:
                     logging.info(f"Trying next model...")
                     time.sleep(1)  # Brief delay before retry
@@ -118,6 +144,17 @@ SETTINGS = CONFIG["settings"]
 # Initialize Model Manager
 model_manager = ModelManager(CONFIG)
 
+# Initialize Whisper model for transcription fallback
+WHISPER_MODEL = None
+def get_whisper_model():
+    global WHISPER_MODEL
+    if WHISPER_MODEL is None:
+        model_name = SETTINGS.get("whisper_model", "base")
+        logging.info(f"Loading Whisper model: {model_name}")
+        WHISPER_MODEL = whisper.load_model(model_name)
+        logging.info(f"Whisper model {model_name} loaded successfully")
+    return WHISPER_MODEL
+
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
@@ -160,9 +197,38 @@ def clean_ai_output(text):
     
     return cleaned_text.strip()
 
-def generate_persistent_id(author, text):
-    raw_str = f"{author}|{text}"
-    return hashlib.md5(raw_str.encode('utf-8')).hexdigest()
+def summarize_transcript(transcript_text, title):
+    """Summarize long transcript to key points for analysis (saves tokens)"""
+    try:
+        # Very aggressive summarization for token efficiency
+        prompt = f"""Summarize this YouTube video transcript titled '{title}' into a very concise summary (max 300 words):
+
+Key elements to capture:
+- Main topic and central argument
+- 2-3 key claims or points
+- Overall tone/sentiment
+- Any controversial elements
+
+Keep it extremely brief!
+
+Transcript excerpt:
+{transcript_text[:15000]}..."""  # Limit to 15k chars for even more token efficiency
+        
+        # Use lightweight model for summarization
+        chat_completion = model_manager.client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model="llama-3.1-8b-instant",  # Lightweight model
+        )
+        
+        summary = chat_completion.choices[0].message.content.strip()
+        logging.info(f"Transcript summarized from {len(transcript_text)} to {len(summary)} characters")
+        return summary
+        
+    except Exception as e:
+        logging.warning(f"Transcript summarization failed: {e}. Using aggressive truncation.")
+        # More aggressive fallback: extract key sentences
+        sentences = transcript_text.split('.')[:10]  # First 10 sentences
+        return '. '.join(sentences) + "... (severely truncated for token limits)"
 
 def get_gradient_color(like_ratio):
     """Generate a color gradient from red to green based on like ratio (0-100)"""
@@ -353,13 +419,205 @@ def get_yt_data(v_id, deep_scrape=False):
                 if ui_count == 0 and len(comments) > 0:
                     ui_count = len(comments)
                     
-            return ui_count, comments, title, video_stats
+            # Get transcript and analysis
+            transcript_text, ai_analysis = get_transcript_and_analysis(v_id, title)
+            
+            return ui_count, comments, title, video_stats, transcript_text, ai_analysis
             
         except Exception as e:
             logging.error(f"Scrape failed for {v_id}: {e}")
-            return None, None, None, None
+            return None, None, None, None, None, None
         finally:
             browser.close()
+
+def get_transcript_and_analysis(v_id, title):
+    """Downloads video audio and transcribes it using Groq's Whisper API."""
+    import tempfile
+    import os
+    
+    full_text = None
+    temp_dir = tempfile.gettempdir()
+    audio_filepath = os.path.join(temp_dir, f"{v_id}.m4a")
+    
+    # We grab the worst audio quality to ensure blazing fast downloads 
+    # and to stay under Groq's 25MB audio file limit.
+    ydl_opts = {
+        'format': 'worstaudio/worst',  # More flexible - any audio format, lowest quality
+        'outtmpl': audio_filepath,
+        'quiet': True,
+        'no_warnings': True,
+        'extract_audio': True,  # Ensure we get audio
+    }
+
+    try:
+        logging.info(f"Ripping audio for {v_id}...")
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([f"https://www.youtube.com/watch?v={v_id}"])
+            
+        logging.info(f"Sending audio to Groq Whisper API for transcription...")
+        
+        # Using the Groq client you already initialized in ModelManager
+        with open(audio_filepath, "rb") as file:
+            transcription = model_manager.client.audio.transcriptions.create(
+                file=(os.path.basename(audio_filepath), file.read()),
+                model="whisper-large-v3",
+                response_format="text",
+                language="sv" # Forcing Swedish context for channels like Anjo/Rask. Remove this line for auto-detect.
+            )
+            
+        full_text = transcription
+        logging.info(f"Audio successfully transcribed! ({len(full_text)} characters)")
+        
+    except Exception as e:
+        logging.error(f"Audio ripping or transcription failed for {v_id}: {e}")
+        return None, None
+        
+    finally:
+        # Always clean up the evidence (temp file)
+        if os.path.exists(audio_filepath):
+            os.remove(audio_filepath)
+
+    if not full_text:
+        return None, None
+
+    # Summarize long transcripts to fit token limits
+    summarized_transcript = summarize_transcript(full_text, title)
+
+    # AI analysis via Groq (using summarized transcript to fit token limits)
+    try:
+        prompt = (
+            f"Analyze the following YouTube video transcript summary titled '{title}'. "
+            f"Provide a concise professional summary (max 400 words) covering:\n"
+            f"- Main topics and key arguments\n"
+            f"- Overall sentiment and tone\n"
+            f"- Any controversial, political, or sensitive elements that might provoke comment deletions\n"
+            f"- Suggested tags or themes for monitoring purposes\n\n"
+            f"Transcript Summary:\n{summarized_transcript}"
+        )
+        
+        analysis, used_model = model_manager.try_model_with_fallback(prompt)
+        
+        if analysis:
+            cleaned_analysis = clean_ai_output(analysis)
+            logging.info(f"AI analysis completed for {v_id} using model '{used_model}'.")
+            return full_text, cleaned_analysis
+        else:
+            logging.warning(f"AI analysis failed for {v_id} with all available models.")
+            return full_text, None
+            
+    except Exception as e:
+        logging.error(f"Groq analysis failed for {v_id}: {e}")
+        return full_text, None
+
+def analyze_video_comprehensive(v_id, title, comments_dict, video_stats, transcript_text=None):
+    """Unified analysis combining transcript content and comment sentiment in one AI call."""
+    if not GROQ_API_KEY:
+        logging.warning("No GROQ_API_KEY found. Skipping comprehensive AI analysis.")
+        return None
+
+    logging.info(f"Generating comprehensive AI analysis for video: {title}")
+    
+    # Prepare transcript section
+    transcript_section = ""
+    if transcript_text:
+        transcript_section = f"**VIDEO TRANSCRIPT:**\n{transcript_text[:3000]}"  # Limit transcript length
+    else:
+        transcript_section = "**VIDEO TRANSCRIPT:**\n(No transcript available - captions disabled)"
+    
+    # Prepare video stats section
+    stats_section = f"**VIDEO ENGAGEMENT:**\n{video_stats['likes']:,} likes, {video_stats['dislikes']:,} dislikes ({video_stats['like_ratio']:.1f}% like ratio)"
+    
+    # Prepare comments section
+    comments_section = ""
+    if comments_dict:
+        texts = [c['t'] for c in comments_dict.values() if not c.get('deleted', False)]
+        if texts:
+            max_comments = SETTINGS.get("max_comments", 150)
+            sample_texts = texts[:max_comments]
+            comments_string = "\n".join([f"- {t}" for t in sample_texts])
+            comments_section = f"**AUDIENCE COMMENTS:**\n{comments_string}"
+        else:
+            comments_section = "**AUDIENCE COMMENTS:**\n(No comments available)"
+    else:
+        comments_section = "**AUDIENCE COMMENTS:**\n(No comments available)"
+    
+    # Create comprehensive prompt
+    prompt = f"""Analyze this YouTube video comprehensively:
+
+{transcript_section}
+
+{stats_section}
+
+{comments_section}
+
+**ANALYSIS REQUEST:**
+Provide a unified analysis covering:
+
+**CONTENT SUMMARY:** Key topics, arguments, and narrative structure from the video transcript
+**AUDIENCE REACTION:** Comment sentiment, dominant themes, and public reception patterns  
+**CONTENT-RECEPTION ALIGNMENT:** How well the video content aligns with audience reactions
+**LEGAL ASSESSMENT:** Defamation risk assessment (always start with 'Sannolikheten är [hög/låg] för förtal')
+**MONITORING INSIGHTS:** Suggested tags and themes for monitoring purposes
+
+**FORMATTING:** 
+- Structure clearly with bold headings
+- Be concise but comprehensive
+- Only mention like ratio if below 90%
+- Provide direct analysis without thinking blocks or meta-commentary
+"""
+    
+    try:
+        # Use ModelManager for intelligent model selection and fallback
+        analysis, used_model = model_manager.try_model_with_fallback(prompt)
+        
+        if not analysis:
+            logging.error("Failed to generate comprehensive AI analysis with all available models")
+            return None
+        
+        # Clean the AI output to remove any unwanted formatting
+        cleaned_analysis = clean_ai_output(analysis)
+        
+        logging.info(f"Comprehensive AI analysis completed using model '{used_model}'")
+        
+        # Generate embed color based on like ratio gradient
+        embed_color = get_gradient_color(video_stats['like_ratio'])
+        logging.info(f"Generated gradient color: {hex(embed_color)} for like ratio: {video_stats['like_ratio']:.1f}%")
+        
+        # Send comprehensive analysis to Discord
+        if WEBHOOK:
+            # Find channel name from video URL by checking which channel list contains this video ID
+            channel_name = "Unknown Channel"
+            for channel in CHANNELS:
+                # This is a simplified approach - in a real implementation you might want to 
+                # store channel info when fetching videos
+                if v_id in [vid for vid in fetch_latest_videos([channel])]:
+                    channel_name = channel
+                    break
+            
+            # Use Discord title from configuration with video title and ID
+            discord_title = PROMPTS["discord_title"].format(title=title, v_id=v_id)
+            
+            # Get thumbnail URL
+            thumbnail_url = get_thumbnail_url(v_id)
+            
+            payload = {
+                "embeds": [{
+                    "title": discord_title,
+                    "color": embed_color,
+                    "image": {
+                        "url": thumbnail_url
+                    },
+                    "fields": [
+                        {"name": PROMPTS["channel_field"], "value": channel_name, "inline": True},
+                        {"name": PROMPTS["video_field"], "value": f"[{title}](https://www.youtube.com/watch?v={v_id})", "inline": False},
+                    ],
+                    "description": cleaned_analysis
+                }]
+            }
+            requests.post(WEBHOOK, json=payload)
+            
+    except Exception as e:
+        logging.error(f"Failed to generate comprehensive AI analysis: {e}")
 
 def summarize_comments_with_ai(title, comments_dict, v_id, video_stats):
     if not GROQ_API_KEY:
@@ -461,11 +719,22 @@ if __name__ == "__main__":
     # 3. Process each video
     for v_id in video_ids:
         logging.info(f"Processing video {v_id}.")
-        _, current_comments, title, video_stats = get_yt_data(v_id, deep_scrape=True)
+        _, current_comments, title, video_stats, transcript_text, ai_analysis = get_yt_data(v_id, deep_scrape=True)
         
         if current_comments is None:
             logging.warning(f"Skipping video {v_id} due to scraping failure.")
             continue
+        
+        # Log transcript and analysis results
+        if transcript_text:
+            logging.info(f"Transcript available for {v_id} ({len(transcript_text)} characters)")
+        else:
+            logging.info(f"No transcript available for {v_id}")
+            
+        if ai_analysis:
+            logging.info(f"Video analysis for {v_id}: {ai_analysis[:200]}...")
+        else:
+            logging.info(f"No AI analysis available for {v_id}")
         
         old_state = history.get(v_id, {"count": 0, "comments": {}})
         updated_comments = {}
@@ -506,6 +775,8 @@ if __name__ == "__main__":
             "count": len(current_comments),
             "comments": updated_comments,
             "title": title,
+            "transcript": transcript_text,
+            "analysis": ai_analysis,
             "last_checked": time.time()
         }
 
