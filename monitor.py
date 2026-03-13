@@ -876,7 +876,7 @@ def get_yt_data(v_id, deep_scrape=False, video_to_channel=None):
             transcript_text, ai_analysis = get_transcript_and_analysis(v_id, title)
             
             # Also run comprehensive analysis
-            comprehensive_analysis = analyze_video_comprehensive(v_id, title, comments, video_stats, transcript_text, video_to_channel)
+            # comprehensive_analysis = analyze_video_comprehensive(v_id, title, comments, video_stats, transcript_text, video_to_channel)
             
             return ui_count, comments, title, video_stats, transcript_text, ai_analysis
             
@@ -1280,22 +1280,9 @@ def summarize_comments_with_ai(title, comments_dict, v_id, video_stats, video_to
         - BÖRJA DIREKT med analysen, ingen inledning
         
         **Data:**
-        Kommentarer: {comments_string}
-        Videotranskript:
-
-        {transcript_section}
-
-{stats_section}
-
-{comments_section}
+        Kommentarer: {validated_comments}{stats_info}
 """
 
-    # Use prompt from configuration
-    prompt = PROMPTS["ai_summary"].format(
-        title=title,
-        comments_string=validated_comments + stats_info
-    )
-    
     # Log final prompt size
     final_tokens = estimate_tokens(prompt, "prompt")
     logging.info(f"Final comment summary prompt size: {final_tokens}/{max_tokens} tokens ({final_tokens/max_tokens*100:.1f}%)")
@@ -1303,15 +1290,14 @@ def summarize_comments_with_ai(title, comments_dict, v_id, video_stats, video_to
     try:
         # Use ModelManager for intelligent model selection and fallback
         summary, used_model = model_manager.try_model_with_fallback(prompt)
-        
         if not summary:
             logging.error("Failed to generate AI summary with all available models")
-            return
+            return None
         
-        # Clean the AI output to remove any unwanted formatting
+        # Clean AI output to remove any unwanted formatting
         cleaned_summary = clean_ai_output(summary)
         
-        logging.info(f"AI Summary generated using model '{used_model}':\n{cleaned_summary}")
+        logging.info(f"AI Summary generated using model '{used_model}'")
         
         # Generate embed color based on like ratio gradient
         embed_color = get_gradient_color(video_stats['like_ratio'])
@@ -1334,7 +1320,7 @@ def summarize_comments_with_ai(title, comments_dict, v_id, video_stats, video_to
         video_entry = find_or_create_video(analysis_stats, channel_name, v_id, title)
         
         # Add comment review analysis
-        add_analysis_to_video(video_entry, "comment_review", prompt, cleaned_summary, "model")
+        add_analysis_to_video(video_entry, "comment_review", prompt, cleaned_summary, used_model)
         
         # Save updated stats
         save_analysis_stats(analysis_stats)
@@ -1423,53 +1409,7 @@ if __name__ == "__main__":
         
         # Trigger comment analysis if comments are available
         if comments:
-            # Generate comment summary and save to analysis
-            try:
-                # Extract comment texts for analysis
-                comment_texts = [c['t'] for c in comments.values() if not c.get('deleted', False)]
-                if comment_texts:
-                    max_comments = SETTINGS.get("max_comments", 150)
-                    sample_texts = comment_texts[:max_comments]
-                    comments_string = "\n".join([f"- {t}" for t in sample_texts])
-                    
-                    # Add video stats to the prompt for better context
-                    stats_info = f"\n\nVideo Stats: {video_stats['likes']:,} likes, {video_stats['dislikes']:,} dislikes ({video_stats['like_ratio']:.1f}% like ratio)"
-                    
-                    # Use prompt from configuration
-                    prompt = PROMPTS["ai_summary"].format(
-                        title=title,
-                        comments_string=comments_string + stats_info
-                    )
-                    
-                    # Generate AI summary
-                    summary, used_model = model_manager.try_model_with_fallback(prompt)
-                    
-                    if summary:
-                        cleaned_summary = clean_ai_output(summary)
-                        
-                        # Save comment analysis
-                        add_analysis_to_video(video_entry, "comment_review", prompt, cleaned_summary, used_model)
-                        
-                        logging.info(f"AI Summary generated using model '{used_model}'")
-                        
-                        # Send to Discord if webhook is configured
-                        if WEBHOOK:
-                            embed_color = get_gradient_color(video_stats['like_ratio'])
-                            payload = {
-                                "embeds": [{
-                                    "title": PROMPTS["discord_title"].format(title=title),
-                                    "color": embed_color,
-                                    "fields": [
-                                        {"name": PROMPTS["channel_field"], "value": channel_name, "inline": True},
-                                        {"name": PROMPTS["video_field"], "value": f"[{title}](https://www.youtube.com/watch?v={v_id})", "inline": False},
-                                    ],
-                                    "description": cleaned_summary
-                                }]
-                            }
-                            requests.post(WEBHOOK, json=payload)
-                    
-            except Exception as e:
-                logging.error(f"Failed to generate comment summary for {v_id}: {e}")
+            summarize_comments_with_ai(title, comments, v_id, video_stats, video_to_channel)
         
         # Save analysis stats after each video
         save_analysis_stats(analysis_stats)
