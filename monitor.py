@@ -347,19 +347,6 @@ SETTINGS = CONFIG["settings"]
 # Initialize Model Manager
 model_manager = ModelManager(CONFIG)
 
-def load_video_cache():
-    """Load video cache from fetch_videos.py output"""
-    try:
-        with open("video_cache.json", "r", encoding='utf-8') as f:
-            cache_data = json.load(f)
-            return cache_data.get("videos", [])
-    except FileNotFoundError:
-        logging.warning("Video cache not found. Run fetch_videos.py first.")
-        return []
-    except Exception as e:
-        logging.error(f"Failed to load video cache: {e}")
-        return []
-
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
@@ -377,6 +364,42 @@ def clean_ai_output(text):
     text = re.sub(r'```.*?```', '', text, flags=re.DOTALL)
     # Remove all content between single backticks
     text = re.sub(r'`.*?`', '', text, flags=re.DOTALL)
+    
+    # Remove malformed "" blocks that appear in AI output
+    text = re.sub(r'""', '', text)
+    text = re.sub(r'""\s*$', '', text, flags=re.MULTILINE)
+    
+    # Remove qwen think blocks specifically
+    text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+    text = re.sub(r'<thinking>.*?</thinking>', '', text, flags=re.DOTALL)
+    
+    # Remove other common AI reasoning patterns
+    text = re.sub(r'<reasoning>.*?</reasoning>', '', text, flags=re.DOTALL)
+    text = re.sub(r'<analysis>.*?</analysis>', '', text, flags=re.DOTALL)
+    
+    # Remove lines that look like AI reasoning/thinking indicators
+    lines = text.split('\n')
+    filtered_lines = []
+    
+    for line in lines:
+        # Skip lines that are just AI reasoning indicators
+        if re.match(r'^\s*<.*?>\s*$', line.strip()) or \
+           re.match(r'^\s*</.*?>\s*$', line.strip()):
+            continue
+        
+        # Skip lines that start with thinking indicators
+        if any(line.strip().startswith(prefix) for prefix in [
+            'Let me think', 'Let me analyze', 'Okay, let me', 
+            'First, I need to', 'I should consider', 'Let me start',
+            'Alright, let me', 'Let me work through', 'I need to',
+            'Let me consider', 'Let me break down', 'Let me examine'
+        ]):
+            continue
+        
+        filtered_lines.append(line)
+    
+    # Rejoin and clean up
+    text = '\n'.join(filtered_lines)
     
     # Remove unwanted AI prefixes and signatures - preserve original structure
     # First, remove prefixes at the start of the text
@@ -512,9 +535,21 @@ def get_video_stats(v_id):
     return {'likes': 0, 'dislikes': 0, 'views': 0, 'like_ratio': 0}
 
 def fetch_latest_videos(channels):
+    """Fetch latest videos from channels and return only new ones not analyzed"""
     latest_videos = []
+    video_to_channel = {}
     user_agent = random.choice(USER_AGENTS)
-    # logging.info(f"Selected user agent for fetching videos: {user_agent}")
+    
+    # Load existing analyzed videos
+    analysis_stats = load_analysis_stats()
+    analyzed_videos = set()
+    for channel_data in analysis_stats.values():
+        if isinstance(channel_data, dict) and "videos" in channel_data:
+            for video in channel_data["videos"]:
+                if isinstance(video, dict) and "video_id" in video:
+                    analyzed_videos.add(video["video_id"])
+    
+    logging.info(f"Found {len(analyzed_videos)} previously analyzed videos")
     
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -553,8 +588,14 @@ def fetch_latest_videos(channels):
                     href = video_locator.get_attribute('href')
                     if href and 'v=' in href:
                         v_id = href.split('v=')[1].split('&')[0]
-                        latest_videos.append(v_id)
-                        logging.info(f"Fetched latest video {v_id} for channel {channel}")
+                        
+                        # Check if video is already analyzed
+                        if v_id not in analyzed_videos:
+                            latest_videos.append(v_id)
+                            video_to_channel[v_id] = channel
+                            logging.info(f"Found new video {v_id} for channel {channel}")
+                        else:
+                            logging.info(f"Video {v_id} already analyzed, skipping")
                 else:
                     # Fallback
                     video_locator = page.locator('ytd-rich-grid-media a[href*="/watch?v="]').first
@@ -562,14 +603,20 @@ def fetch_latest_videos(channels):
                         href = video_locator.get_attribute('href')
                         if href and 'v=' in href:
                             v_id = href.split('v=')[1].split('&')[0]
-                            latest_videos.append(v_id)
-                            logging.info(f"Fetched latest video {v_id} for channel {channel} using fallback")
+                            
+                            # Check if video is already analyzed
+                            if v_id not in analyzed_videos:
+                                latest_videos.append(v_id)
+                                video_to_channel[v_id] = channel
+                                logging.info(f"Found new video {v_id} for channel {channel} using fallback")
+                            else:
+                                logging.info(f"Video {v_id} already analyzed, skipping")
             except Exception as e:
                 logging.error(f"Failed to fetch latest video for {channel}: {e}")
         
         browser.close()
     
-    return latest_videos
+    return latest_videos, video_to_channel
 
 def generate_persistent_id(author, text):
     raw_str = f"{author}|{text}"
@@ -663,7 +710,7 @@ def add_analysis_to_video(video, analysis_type, input_prompt, output, model):
         "timestamp": time.time()
     }
 
-def get_yt_data(v_id, deep_scrape=False):
+def get_yt_data(v_id, deep_scrape=False, video_to_channel=None):
     user_agent = random.choice(USER_AGENTS)
     logging.info(f"Selected user agent for scraping comments: {user_agent}")
     
@@ -738,7 +785,7 @@ def get_yt_data(v_id, deep_scrape=False):
                 while True:
                     thread_nodes = page.locator('ytd-comment-thread-renderer')
                     current_thread = thread_nodes.count()
-                    logging.info(f"Current top-level threads: {current_thread}")
+                    # logging.info(f"Current top-level threads: {current_thread}")
                     if current_thread == last_thread_count:
                         no_change += 1
                         if no_change >= 3:
@@ -748,11 +795,11 @@ def get_yt_data(v_id, deep_scrape=False):
                         no_change = 0
                         last_thread_count = current_thread
                     page.evaluate("document.scrollingElement.scrollTop = document.scrollingElement.scrollHeight")
-                    logging.info("Scrolled to bottom for thread loading.")
+                    # logging.info("Scrolled to bottom for thread loading.")
                     page.wait_for_timeout(5000)
 
                 # Phase 2: Expand replies using JavaScript to bypass actionability checks
-                logging.info("Expanding nested replies via JavaScript injection...")
+                # logging.info("Expanding nested replies via JavaScript injection...")
                 max_iterations = 3  # Run a few times in case clicking reveals nested "show more" buttons
                 
                 for i in range(max_iterations):
@@ -771,7 +818,7 @@ def get_yt_data(v_id, deep_scrape=False):
                             return count;
                         }""")
                         
-                        logging.info(f"Iteration {i+1}: Dispatched {clicks_dispatched} clicks via JS.")
+                        # logging.info(f"Iteration {i+1}: Dispatched {clicks_dispatched} clicks via JS.")
                         
                         if clicks_dispatched == 0:
                             logging.info("No more expansion buttons found. Expansion complete.")
@@ -829,7 +876,7 @@ def get_yt_data(v_id, deep_scrape=False):
             transcript_text, ai_analysis = get_transcript_and_analysis(v_id, title)
             
             # Also run comprehensive analysis
-            comprehensive_analysis = analyze_video_comprehensive(v_id, title, comments, video_stats, transcript_text)
+            comprehensive_analysis = analyze_video_comprehensive(v_id, title, comments, video_stats, transcript_text, video_to_channel)
             
             return ui_count, comments, title, video_stats, transcript_text, ai_analysis
             
@@ -889,16 +936,23 @@ def get_transcript_and_analysis(v_id, title):
         logging.info(f"Sending audio to Groq Whisper API for transcription...")
         
         # Using the Groq client you already initialized in ModelManager
-        with open(audio_filepath, "rb") as file:
-            transcription = model_manager.client.audio.transcriptions.create(
-                file=(os.path.basename(audio_filepath), file.read()),
-                model="whisper-large-v2",  # More generous rate limits than v3-turbo
-                response_format="text",
-                language="sv" # Forcing Swedish context for channels like Anjo/Rask. Remove this line for auto-detect.
-            )
+        try:
+            with open(audio_filepath, "rb") as file:
+                transcription = model_manager.client.audio.transcriptions.create(
+                    file=(os.path.basename(audio_filepath), file.read()),
+                    model="whisper-large-v3",  # Updated to correct model name
+                    response_format="text",
+                    language="sv" # Forcing Swedish context for channels like Anjo/Rask. Remove this line for auto-detect.
+                )
+                
+            full_text = transcription
+            logging.info(f"Audio successfully transcribed! ({len(full_text)} characters)")
             
-        full_text = transcription
-        logging.info(f"Audio successfully transcribed! ({len(full_text)} characters)")
+        except Exception as transcribe_e:
+            logging.error(f"Transcription failed: {transcribe_e}")
+            # Return empty transcription but continue with analysis
+            full_text = ""
+            logging.info("Continuing without transcription due to API error")
         
         # Save transcription to JSON file along with video ID
         current_timestamp = time.time()
@@ -970,10 +1024,10 @@ def get_transcript_and_analysis(v_id, title):
         channel_name = "transcript_analysis"
         
         # Find or create video entry
-        video_entry, channel_data = find_or_create_video(analysis_stats, channel_name, v_id, title)
+        video_entry = find_or_create_video(analysis_stats, channel_name, v_id, title)
         
         # Add transcription analysis
-        add_analysis_to_video(video_entry, "transcription", prompt, full_text if full_text else "No transcription available", "whisper-large-v2")
+        add_analysis_to_video(video_entry, "transcription", prompt, full_text if full_text else "No transcription available", "whisper-large-v3")
         
         # Save updated stats
         save_analysis_stats(analysis_stats)
@@ -999,7 +1053,7 @@ def get_transcript_and_analysis(v_id, title):
         logging.error(f"Groq analysis failed for {v_id}: {e}")
         return full_text, None
 
-def analyze_video_comprehensive(v_id, title, comments_dict, video_stats, transcript_text=None):
+def analyze_video_comprehensive(v_id, title, comments_dict, video_stats, transcript_text=None, video_to_channel=None):
     """Unified analysis combining transcript content and comment sentiment in one AI call."""
     if not GROQ_API_KEY:
         logging.warning("No GROQ_API_KEY found. Skipping comprehensive AI analysis.")
@@ -1092,32 +1146,24 @@ Provide a unified analysis covering:
     # Determine channel name from available data or use default
     channel_name = "comprehensive_analysis"  # Default if we can't determine channel
     
-    # Use cached video mapping to determine channel name
-    cached_videos = load_video_cache()
-    video_to_channel = {}
-    
-    # Create reverse mapping from cache
-    for channel in CHANNELS:
-        try:
-            # Check if we have recent cache data for this channel
-            channel_cache_file = f"{channel}_videos.json"
-            if os.path.exists(channel_cache_file):
-                with open(channel_cache_file, 'r', encoding='utf-8') as f:
-                    channel_videos = json.load(f).get("videos", [])
-                    for video in channel_videos:
-                        video_to_channel[video.get("video_id", "")] = channel
-        except Exception as e:
-            logging.warning(f"Failed to load channel cache for {channel}: {e}")
-    
-    # Determine channel from cached data
-    channel_name = video_to_channel.get(v_id, "Unknown Channel")
-    if channel_name != "Unknown Channel":
-        logging.info(f"Using cached channel name '{channel_name}' for video {v_id}")
+    # Use provided video_to_channel mapping
+    if video_to_channel:
+        channel_name = video_to_channel.get(v_id, "Unknown Channel")
+        if channel_name != "Unknown Channel":
+            logging.info(f"Using provided channel name '{channel_name}' for video {v_id}")
+        else:
+            logging.warning(f"Video {v_id} not found in provided channel mapping")
     else:
-        logging.warning(f"Video {v_id} not found in any channel cache")
+        logging.warning(f"No video_to_channel mapping provided for video {v_id}")
     
     # Find or create video entry
     video_entry = find_or_create_video(analysis_stats, channel_name, v_id, title)
+    
+    # Save transcript section to analysis
+    add_analysis_to_video(video_entry, "transcript", transcript_section, "transcript_data", "system")
+    
+    # Save updated stats
+    save_analysis_stats(analysis_stats)
     
     # Add comprehensive analysis
     add_analysis_to_video(video_entry, "comprehensive", prompt, "[Analysis pending]", "pending")
@@ -1175,7 +1221,7 @@ Provide a unified analysis covering:
     except Exception as e:
         logging.error(f"Failed to generate comprehensive AI analysis: {e}")
 
-def summarize_comments_with_ai(title, comments_dict, v_id, video_stats):
+def summarize_comments_with_ai(title, comments_dict, v_id, video_stats, video_to_channel=None):
     """Generate AI summary of comments and send to Discord webhook"""
     # Load analysis stats
     analysis_stats = load_analysis_stats()
@@ -1212,6 +1258,38 @@ def summarize_comments_with_ai(title, comments_dict, v_id, video_stats):
     if was_trimmed:
         logging.info(f"Comments trimmed from {len(comments_string)} to {len(validated_comments)} chars for summary")
     
+    prompt = f"""Du är en klinisk medieanalytiker.
+    Leverera en rak och kompakt analys av videon \"{title}\".
+    Var objektiv men 'hård'.
+    
+    **Instruktioner:**
+    1. **Sammanfattning:** Max 2 meningar om den dominerande stämningen.
+        Nämn ENDAST like/dislike-förhållandet om likes understiger 90%, och väv då in det organiskt för att förklara diskrepans eller förstärka kritiken.
+        Om likes är 90% eller högre, ignorera siffran helt.
+        
+        **Juridisk bedömning:** Inled alltid med meningen 'Sannolikheten är [hög/låg] för förtal.'
+        Följ upp med max en mening som konkret motiverar bedömningen (t.ex. förekomst av anklagelser om brott, grova förolämpningar eller koordinerade drev).
+        
+        **KRITISKT - FÖLJ EXAKT:**
+        - ABSOLUT INGA think-blocks (```), resonemang eller tankprocesser
+        - VISA INTE DITT TÄNKANDE - ge bara slutgiltig analys
+        - Använd INGEN markdown-formatering eller specialtecken
+        - Fetmarkera ENDAST de inledande orden (**Sammanfattning:** och **Juridisk bedömning:**)
+        - Inga listor, inga rubriker, inga kursiveringar
+        - Ge svaret som REN TEXT utan några formateringselement
+        - BÖRJA DIREKT med analysen, ingen inledning
+        
+        **Data:**
+        Kommentarer: {comments_string}
+        Videotranskript:
+
+        {transcript_section}
+
+{stats_section}
+
+{comments_section}
+"""
+
     # Use prompt from configuration
     prompt = PROMPTS["ai_summary"].format(
         title=title,
@@ -1241,27 +1319,16 @@ def summarize_comments_with_ai(title, comments_dict, v_id, video_stats):
         
         # Determine channel name (used for tracking even without webhook)
         channel_name = "Unknown Channel"
-        cached_videos = load_video_cache()
-        video_to_channel = {}
-        
-        # Create reverse mapping from cache
-        for channel in CHANNELS:
-            try:
-                channel_cache_file = f"{channel}_videos.json"
-                if os.path.exists(channel_cache_file):
-                    with open(channel_cache_file, 'r', encoding='utf-8') as f:
-                        channel_videos = json.load(f).get("videos", [])
-                        for video in channel_videos:
-                            video_to_channel[video.get("video_id", "")] = channel
-            except Exception as e:
-                logging.warning(f"Failed to load channel cache for {channel}: {e}")
     
-        # Determine channel from cached data
-        channel_name = video_to_channel.get(v_id, "Unknown Channel")
-        if channel_name != "Unknown Channel":
-            logging.info(f"Using cached channel name '{channel_name}' for video {v_id}")
+        # Use provided video_to_channel mapping
+        if video_to_channel:
+            channel_name = video_to_channel.get(v_id, "Unknown Channel")
+            if channel_name != "Unknown Channel":
+                logging.info(f"Using provided channel name '{channel_name}' for video {v_id}")
+            else:
+                logging.warning(f"Video {v_id} not found in provided channel mapping")
         else:
-            logging.warning(f"Video {v_id} not found in any channel cache")
+            logging.warning(f"No video_to_channel mapping provided for video {v_id}")
         
         # Find or create video entry
         video_entry = find_or_create_video(analysis_stats, channel_name, v_id, title)
@@ -1312,87 +1379,100 @@ def summarize_comments_with_ai(title, comments_dict, v_id, video_stats):
 if __name__ == "__main__":
     logging.info("Starting YouTube video analyzer...")
     
-    # 1. Load cached videos (avoid Playwright conflicts)
-    video_ids = load_video_cache()
+    # 1. Fetch new videos from channels
+    video_ids, video_to_channel = fetch_latest_videos(CHANNELS)
+    
     if not video_ids:
-        logging.error("No video cache found. Please run fetch_videos.py first.")
-        sys.exit(1)
+        logging.info("No new videos found to analyze.")
+    else:
+        logging.info(f"Found {len(video_ids)} new videos to analyze.")
     
-    logging.info(f"Using cached videos: {video_ids}")
+    # 2. Load analysis stats
+    analysis_stats = load_analysis_stats()
     
-    # 2. Load historical state
-    history = {}
-    if os.path.exists(STATE_FILE):
-        with open(STATE_FILE, "r", encoding='utf-8') as f:
-            history = json.load(f)
-        logging.info("Loaded existing comment state.")
-
     # 3. Process each video
     for v_id in video_ids:
-        logging.info(f"Processing video {v_id}.")
-        _, current_comments, title, video_stats, transcript_text, ai_analysis = get_yt_data(v_id, deep_scrape=True)
+        channel_name = video_to_channel.get(v_id, "Unknown Channel")
+        logging.info(f"Processing video {v_id} from channel {channel_name}.")
         
-        if current_comments is None:
+        # Get video data
+        ui_count, comments, title, video_stats, transcript_text, ai_analysis = get_yt_data(v_id, deep_scrape=True, video_to_channel=video_to_channel)
+        
+        if title is None:
             logging.warning(f"Skipping video {v_id} due to scraping failure.")
             continue
         
-        # Log transcript and analysis results
+        # Find or create video entry
+        video_entry = find_or_create_video(analysis_stats, channel_name, v_id, title)
+        
+        # Save video metadata
+        video_entry["video_stats"] = video_stats
+        video_entry["ui_comment_count"] = ui_count
+        
+        # Save transcript if available
         if transcript_text:
+            video_entry["transcript"] = transcript_text
             logging.info(f"Transcript available for {v_id} ({len(transcript_text)} characters)")
         else:
             logging.info(f"No transcript available for {v_id}")
-            
+        
+        # Save AI analysis if available
         if ai_analysis:
-            logging.info(f"Video analysis for {v_id}: {ai_analysis[:200]}...")
-        else:
-            logging.info(f"No AI analysis available for {v_id}")
+            video_entry["ai_analysis"] = ai_analysis
+            logging.info(f"AI analysis available for {v_id}")
         
-        old_state = history.get(v_id, {"count": 0, "comments": {}})
-        updated_comments = {}
-        deletions = []
+        # Trigger comment analysis if comments are available
+        if comments:
+            # Generate comment summary and save to analysis
+            try:
+                # Extract comment texts for analysis
+                comment_texts = [c['t'] for c in comments.values() if not c.get('deleted', False)]
+                if comment_texts:
+                    max_comments = SETTINGS.get("max_comments", 150)
+                    sample_texts = comment_texts[:max_comments]
+                    comments_string = "\n".join([f"- {t}" for t in sample_texts])
+                    
+                    # Add video stats to the prompt for better context
+                    stats_info = f"\n\nVideo Stats: {video_stats['likes']:,} likes, {video_stats['dislikes']:,} dislikes ({video_stats['like_ratio']:.1f}% like ratio)"
+                    
+                    # Use prompt from configuration
+                    prompt = PROMPTS["ai_summary"].format(
+                        title=title,
+                        comments_string=comments_string + stats_info
+                    )
+                    
+                    # Generate AI summary
+                    summary, used_model = model_manager.try_model_with_fallback(prompt)
+                    
+                    if summary:
+                        cleaned_summary = clean_ai_output(summary)
+                        
+                        # Save comment analysis
+                        add_analysis_to_video(video_entry, "comment_review", prompt, cleaned_summary, used_model)
+                        
+                        logging.info(f"AI Summary generated using model '{used_model}'")
+                        
+                        # Send to Discord if webhook is configured
+                        if WEBHOOK:
+                            embed_color = get_gradient_color(video_stats['like_ratio'])
+                            payload = {
+                                "embeds": [{
+                                    "title": PROMPTS["discord_title"].format(title=title),
+                                    "color": embed_color,
+                                    "fields": [
+                                        {"name": PROMPTS["channel_field"], "value": channel_name, "inline": True},
+                                        {"name": PROMPTS["video_field"], "value": f"[{title}](https://www.youtube.com/watch?v={v_id})", "inline": False},
+                                    ],
+                                    "description": cleaned_summary
+                                }]
+                            }
+                            requests.post(WEBHOOK, json=payload)
+                    
+            except Exception as e:
+                logging.error(f"Failed to generate comment summary for {v_id}: {e}")
         
-        # Check existing comments for deletions
-        for c_id, comment_data in old_state["comments"].items():
-            if c_id in current_comments:
-                updated_comments[c_id] = comment_data.copy()
-                updated_comments[c_id]['lastSeen'] = int(time.time())
-                updated_comments[c_id]['notFoundCounter'] = 0
-            else:
-                updated_comments[c_id] = comment_data.copy()
-                updated_comments[c_id]['notFoundCounter'] = comment_data.get('notFoundCounter', 0) + 1
-                
-                if updated_comments[c_id]['notFoundCounter'] >= 3 and not comment_data.get('deleted', False):
-                    updated_comments[c_id]['deleted'] = True
-                    deletions.append(updated_comments[c_id])
-        
-        # Add new comments
-        for c_id, comment_data in current_comments.items():
-            if c_id not in updated_comments:
-                updated_comments[c_id] = comment_data.copy()
-        
-        # Fire deletion webhooks - DISABLED
-        # if deletions:
-        #     total_tracked = len([c for c in updated_comments.values() if not c.get('deleted', False)])
-        #     perc = (len(deletions) / max(total_tracked + len(deletions), 1)) * 100
-        #     for d in deletions:
-        #         send_deletion_alert(d['a'], d['t'], v_id, d.get('ts_posted', time.time()), time.time(), perc, title)
-
-        # 4. Trigger AI to summarize comment section
-        # We only pass current live comments to get real-time sentiment
-        summarize_comments_with_ai(title, current_comments, v_id, video_stats)
-        
-        # Save history
-        history[v_id] = {
-            "count": len(current_comments),
-            "comments": updated_comments,
-            "title": title,
-            "transcript": transcript_text,
-            "analysis": ai_analysis,
-            "last_checked": time.time()
-        }
-
-    # 5. Save state to disk
-    with open(STATE_FILE, "w", encoding='utf-8') as f:
-        json.dump(history, f, indent=2, ensure_ascii=False)
+        # Save analysis stats after each video
+        save_analysis_stats(analysis_stats)
+        time.sleep(2)  # Brief pause between videos
     
-    logging.info("Analysis complete and state saved.")
+    logging.info("Analysis complete and state saved to analysis_stats.json.")
