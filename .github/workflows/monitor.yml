@@ -1,0 +1,40 @@
+name: Monitor
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'  # Runs at minute 0 and 30 of every hour
+  workflow_dispatch:       # Allow manual trigger
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: ${{ github.workflow }}
+    permissions:
+      contents: write # Crucial for saving the state file
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install FFmpeg
+        run: |
+          sudo apt update
+          sudo apt install -y ffmpeg
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run monitor
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: python monitor.py
+      - name: Commit and Push changes
+        run: |
+          git config --global user.name "Watchdog Bot"
+          git config --global user.email "bot@github.com"
+          git add comment_state.json
+          git commit -m "Update comment state" || exit 0
+          git pull --rebase
+          git push
