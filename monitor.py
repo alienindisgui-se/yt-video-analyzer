@@ -985,6 +985,14 @@ def get_transcript_and_analysis(v_id, title):
         
     except Exception as e:
         error_msg = str(e).lower()
+        # Check for members-only/private content restrictions
+        if ("join this channel to get access to members-only content" in error_msg or 
+            "members-only content" in error_msg or 
+            "private video" in error_msg or 
+            "this video is private" in error_msg):
+            logging.warning(f"Skipping members-only/private video {v_id}: {e}")
+            return "MEMBERS_ONLY", None
+        
         if "429" in error_msg or "rate limit" in error_msg or "rate_limit_exceeded" in error_msg:
             logging.error(f"Groq rate limit reached during transcription for {v_id}: {e}")
             logging.error("Aborting entire script run to prevent further violations.")
@@ -1283,6 +1291,8 @@ def summarize_comments_with_ai(title, comments_dict, v_id, video_stats, video_to
         Kommentarer: {validated_comments}{stats_info}
 """
 
+    logging.info(f"Prompt: {prompt}")
+
     # Log final prompt size
     final_tokens = estimate_tokens(prompt, "prompt")
     logging.info(f"Final comment summary prompt size: {final_tokens}/{max_tokens} tokens ({final_tokens/max_tokens*100:.1f}%)")
@@ -1386,6 +1396,11 @@ if __name__ == "__main__":
         
         if title is None:
             logging.warning(f"Skipping video {v_id} due to scraping failure.")
+            continue
+        
+        # Check for members-only/private content
+        if transcript_text == "MEMBERS_ONLY":
+            logging.warning(f"Skipping members-only/private video {v_id} - content access restricted")
             continue
         
         # Find or create video entry
