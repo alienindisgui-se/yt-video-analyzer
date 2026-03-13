@@ -66,11 +66,12 @@ def setup_run_logging():
     return run_log_file
 
 # Configuration
-# CHANNELS = ['CarlFredrikAlexanderRask']
-CHANNELS = ['CarlFredrikAlexanderRask', 'ANJO1', 'MotVikten', 'Skuldis']
+CHANNELS = ['ANJO1']
+# CHANNELS = ['CarlFredrikAlexanderRask', 'ANJO1', 'MotVikten', 'Skuldis']
 STATE_FILE = "comment_state.json"
 ANALYSIS_STATS_FILE = "analysis_stats.json"  # Track video analysis counts per channel
 CONFIG_FILE = "config.json"
+
 
 def estimate_tokens(text, content_type="general"):
     """
@@ -759,13 +760,43 @@ def get_yt_data(v_id, deep_scrape=False, video_to_channel=None):
             page.wait_for_load_state('networkidle')
             page.evaluate("window.scrollBy(0, 800)")
             
+            # Check for private/members-only content indicators in page content
+            page_content = page.content()
+            page_title = page.title()
+            
+            # Check for private video indicators
+            private_indicators = [
+                "This video is private",
+                "Private video",
+                "Video unavailable",
+                "This video is not available"
+            ]
+            
+            # Check for members-only content indicators  
+            members_indicators = [
+                "Join this channel to get access to members-only content",
+                "Become a member",
+                "Members-only content",
+                "channel members"
+            ]
+            
+            # Check page title for private indicators
+            if any(indicator.lower() in page_title.lower() for indicator in private_indicators):
+                logging.warning(f"Private video detected in page title for {v_id}: {page_title}")
+                return "MEMBERS_ONLY", None, None, None, None, None
+                
+            # Check page content for members-only indicators
+            if any(indicator.lower() in page_content.lower() for indicator in members_indicators):
+                logging.warning(f"Members-only content detected in page content for {v_id}")
+                return "MEMBERS_ONLY", None, None, None, None, None
+            
             try:
                 page.wait_for_selector('ytd-comments#comments', state='attached', timeout=15000)
                 page.wait_for_timeout(3000)
             except TimeoutError:
                 logging.warning("Comments section did not attach in time. Video might have comments disabled.")
-                return None, None, None, None
-
+                return None, None, None, None, None, None
+            
             title_elem = page.locator('h1.ytd-watch-metadata yt-formatted-string')
             title = title_elem.text_content().strip() if title_elem.count() > 0 else 'Unknown'
             
