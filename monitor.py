@@ -13,6 +13,7 @@ from groq import Groq
 from playwright.sync_api import sync_playwright, TimeoutError
 import yt_dlp
 import google.genai as genai
+import tempfile
 
 # Load environment variables from .env file
 load_dotenv()
@@ -959,73 +960,149 @@ def get_yt_data(v_id, deep_scrape=False, video_to_channel=None):
 
 def get_transcript_and_analysis(v_id, title):
     """Downloads video audio and transcribes it using Groq's Whisper API."""
-    import tempfile
-    import os
+    
+    # Constants for file size management
+    GROQ_MAX_FILE_SIZE = 25 * 1024 * 1024  # 25MB in bytes
+    SAFETY_BUFFER = 2 * 1024 * 1024        # 2MB safety buffer
+    MAX_ALLOWED_SIZE = GROQ_MAX_FILE_SIZE - SAFETY_BUFFER
     
     full_text = None
+    audio_filepath = None
     
-    # Use secure temporary file with random name
-    with tempfile.NamedTemporaryFile(suffix='.m4a', delete=False) as temp_file:
-        audio_filepath = temp_file.name
-    
-    # We grab the worst audio quality to ensure blazing fast downloads 
-    # and to stay under Groq's 25MB audio file limit.
-    ydl_opts = {
-        'format': 'worstaudio/worst',  # More flexible - any audio format, lowest quality
-        'outtmpl': audio_filepath,
-        'quiet': True,
-        'no_warnings': True,
-        'extract_audio': True,  # Ensure we get audio
-    }
-
     try:
-        logging.info(f"Ripping audio for {v_id}...")
+        # Use secure temporary file
+        with tempfile.NamedTemporaryFile(suffix='.m4a', delete=False) as temp_file:
+            audio_filepath = temp_file.name
+
+        # Check if FFmpeg is available for post-processing
+        import shutil
+        import os
+        
+        # Detect if running in GitHub Actions
+        is_github_actions = os.getenv('GITHUB_ACTIONS') == 'true'
+        
+        if is_github_actions:
+            logging.info("Running in GitHub Actions environment")
+            
+        ffmpeg_available = shutil.which('ffmpeg') is not None
+        
+        if not ffmpeg_available:
+            if is_github_actions:
+                logging.error("FFmpeg not found in GitHub Actions - workflow may need FFmpeg installation")
+            else:
+                logging.warning("FFmpeg not found - using basic audio extraction without compression")
+                logging.info("To install FFmpeg on Ubuntu/Debian: sudo apt install ffmpeg")
+                logging.info("To install FFmpeg on macOS: brew install ffmpeg")
+                logging.info("To install FFmpeg on Windows: Download from https://ffmpeg.org/download.html")
+            
+            # Basic yt-dlp options without FFmpeg
+            ydl_opts = {
+                'format': 'worstaudio/worst',  
+                'outtmpl': audio_filepath,
+                'quiet': True,
+                'no_warnings': True,
+                # SAFETY NET: Natively stop downloading at 119 minutes (7140 seconds)
+                'download_ranges': yt_dlp.utils.download_range_func(None, [(0, 7140)]),
+            }
+        else:
+            if is_github_actions:
+                logging.info("GitHub Actions: FFmpeg available - using aggressive compression")
+            else:
+                logging.info("FFmpeg available - using aggressive compression")
+                
+            # Aggressive compression to fit up to 120 mins into < 25MB
+            ydl_opts = {
+                'format': 'worstaudio/worst',  
+                'outtmpl': audio_filepath,
+                'quiet': True,
+                'no_warnings': True,
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'm4a',   # m4a holds clarity better than mp3 at low bitrates
+                }],
+                'postprocessor_args': [
+                    '-ar', '16000',  # 16kHz sample rate (Whisper standard, saves massive space)
+                    '-ac', '1',      # Mono audio (halves file size)
+                    '-b:a', '24k',   # 24 kbps strict bitrate (~21.6MB for 120 mins)
+                ],
+                # SAFETY NET: Natively stop downloading at 119 minutes (7140 seconds)
+                'download_ranges': yt_dlp.utils.download_range_func(None, [(0, 7140)]),
+            }
+
+        logging.info(f"Ripping & compressing audio for {v_id}...")
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([f"https://www.youtube.com/watch?v={v_id}"])
             
-        logging.info(f"Audio downloaded successfully for {v_id}. File size: {os.path.getsize(audio_filepath):,} bytes")
+        # Ensure yt-dlp didn't append an extra extension during post-processing
+        if not os.path.exists(audio_filepath):
+            possible_files = [f for f in os.listdir(os.path.dirname(audio_filepath)) 
+                              if f.startswith(os.path.basename(audio_filepath))]
+            if possible_files:
+                audio_filepath = os.path.join(os.path.dirname(audio_filepath), possible_files[0])
         
-        # Dynamically trim audio based on duration to respect Groq's ASPH rate limits (7200s/hour)
-        # Trim to first 45 minutes for safety, as longer videos would exceed limits.
-        try:
-            # Use yt-dlp to download only first 45 minutes
-            trimmed_filepath = audio_filepath.replace('.m4a', '_trimmed.m4a')
-            trim_opts = ydl_opts.copy()
-            trim_opts['outtmpl'] = trimmed_filepath
-            trim_opts['download_sections'] = '*0:2700'  # Correct parameter for time ranges
+        # Enhanced file size analysis and pre-flight checks
+        file_size = os.path.getsize(audio_filepath)
+        size_mb = file_size / (1024 * 1024)
+        size_percentage = (file_size / GROQ_MAX_FILE_SIZE) * 100
+        
+        logging.info(f"=== AUDIO FILE ANALYSIS for {v_id} ===")
+        logging.info(f"File size: {file_size:,} bytes ({size_mb:.2f} MB)")
+        logging.info(f"Size utilization: {size_percentage:.1f}% of API limit")
+        
+        # Pre-flight size check
+        if file_size > GROQ_MAX_FILE_SIZE:
+            logging.error(f"PRE-FLIGHT CHECK FAILED: File size ({size_mb:.2f} MB) exceeds Groq API limit (25 MB)")
+            return "TRANSCRIPTION_FAILED", None
             
-            with yt_dlp.YoutubeDL(trim_opts) as trim_ydl:
-                trim_ydl.download([f"https://www.youtube.com/watch?v={v_id}"])
-            
-            # Replace original with trimmed version
-            os.remove(audio_filepath)
-            audio_filepath = trimmed_filepath
-            logging.info(f"Audio trimmed successfully using yt-dlp. New file size: {os.path.getsize(audio_filepath):,} bytes")
-        except Exception as ydl_trim_e:
-            logging.warning(f"Audio trimming failed: {ydl_trim_e}. Proceeding with full audio - may hit rate limits.")
+        elif file_size > MAX_ALLOWED_SIZE:
+            logging.warning(f"PRE-FLIGHT CHECK: File size ({size_mb:.2f} MB) exceeds safe threshold ({MAX_ALLOWED_SIZE / (1024 * 1024):.2f} MB)")
+            logging.warning(f"Proceeding with transcription - may risk API rejection")
+        else:
+            logging.info(f"PRE-FLIGHT CHECK PASSED: File size within safe limits")
         
         logging.info(f"Sending audio to Groq Whisper API for transcription...")
         
-        # Using the Groq client you already initialized in ModelManager
-        try:
-            with open(audio_filepath, "rb") as file:
-                transcription = model_manager.client.audio.transcriptions.create(
-                    file=(os.path.basename(audio_filepath), file.read()),
-                    model="whisper-large-v3",  # Updated to correct model name
-                    response_format="text",
-                    language="sv" # Forcing Swedish context for channels like Anjo/Rask. Remove this line for auto-detect.
-                )
-                
-            full_text = transcription
-            logging.info(f"Audio successfully transcribed! ({len(full_text)} characters)")
-            
-        except Exception as transcribe_e:
-            logging.error(f"Transcription failed: {transcribe_e}")
-            # Return empty transcription but continue with analysis
-            full_text = ""
-            logging.info("Continuing without transcription due to API error")
+        # API Call
+        logging.info(f"API CALL DETAILS for {v_id}:")
+        logging.info(f"- Model: whisper-large-v3-turbo") 
+        logging.info(f"- Language: sv (Swedish)")
         
-        # Save transcription to JSON file along with video ID
+        with open(audio_filepath, "rb") as file:
+            # FIX: Do not use file.read() here, just pass the file object. 
+            # Reading 25MB into memory before passing to the client is inefficient and can cause upload errors.
+            transcription = model_manager.client.audio.transcriptions.create(
+                file=(os.path.basename(audio_filepath), file),
+                model="whisper-large-v3-turbo",  # Upgraded to Turbo
+                response_format="text",
+                language="sv"
+            )
+            
+        full_text = transcription
+        logging.info(f"Audio successfully transcribed! ({len(full_text)} characters)")
+        
+    except Exception as e:
+        logging.error(f"Error processing video {v_id}: {str(e)}")
+        
+        # Check if it's a file size issue
+        if "413" in str(e) or "too large" in str(e).lower():
+            logging.error(f"Audio file too large for Groq API (max 25MB). Skipping video {v_id} as transcription is required.")
+        else:
+            logging.error(f"Transcription API error for video {v_id}. Skipping as transcription is required.")
+        
+        return "TRANSCRIPTION_FAILED", None
+        
+    finally:
+        # FIX: Ensure cleanup ALWAYS happens. 
+        # Your previous script only cleaned up the file if the size check failed.
+        if audio_filepath and os.path.exists(audio_filepath):
+            try:
+                os.remove(audio_filepath)
+                logging.info(f"Cleaned up temporary audio file for {v_id}")
+            except Exception as cleanup_e:
+                logging.warning(f"Failed to cleanup audio file: {cleanup_e}")
+
+    # Save transcription to JSON file along with video ID
+    if full_text:
         current_timestamp = time.time()
         transcription_data = {
             "video_id": v_id,
@@ -1053,32 +1130,6 @@ def get_transcript_and_analysis(v_id, title):
             
         except Exception as save_e:
             logging.warning(f"Failed to save transcription to JSON: {save_e}")
-        
-    except Exception as e:
-        error_msg = str(e).lower()
-        # Check for members-only/private content restrictions
-        if ("join this channel to get access to members-only content" in error_msg or 
-            "members-only content" in error_msg or 
-            "private video" in error_msg or 
-            "this video is private" in error_msg):
-            logging.warning(f"Skipping members-only/private video {v_id}: {e}")
-            return "MEMBERS_ONLY", None
-        
-        if "429" in error_msg or "rate limit" in error_msg or "rate_limit_exceeded" in error_msg:
-            logging.error(f"Groq rate limit reached during transcription for {v_id}: {e}")
-            logging.error("Aborting entire script run to prevent further violations.")
-            sys.exit(1)  # Immediate abortion as requested
-        else:
-            logging.error(f"Audio ripping or transcription failed for {v_id}: {e}")
-            return None, None
-        
-    finally:
-        # Always clean up the evidence (temp file)
-        if os.path.exists(audio_filepath):
-            os.remove(audio_filepath)
-
-    if not full_text:
-        return None, None
 
     # Summarize long transcripts to fit token limits
     summarized_transcript = summarize_transcript(full_text, title)
@@ -1131,10 +1182,6 @@ def get_transcript_and_analysis(v_id, title):
     except Exception as e:
         logging.error(f"Groq analysis failed for {v_id}: {e}")
         return full_text, None
-
-# def analyze_video_comprehensive(v_id, title, comments_dict, video_stats, transcript_text=None, video_to_channel=None):
-#     """Unified analysis combining transcript content and comment sentiment in one AI call."""
-#     if not GROQ_API_KEY:
 #         logging.warning("No GROQ_API_KEY found. Skipping comprehensive AI analysis.")
 #         return None
 
@@ -1300,7 +1347,7 @@ def get_transcript_and_analysis(v_id, title):
     # except Exception as e:
     #     logging.error(f"Failed to generate comprehensive AI analysis: {e}")
 
-def summarize_comments_with_ai(title, comments_dict, v_id, video_stats, video_to_channel=None):
+def summarize_comments_with_ai(title, comments_dict, v_id, video_stats, video_to_channel=None, transcript_text=None):
     """Generate AI summary of comments and send to Discord webhook"""
     # Load analysis stats
     analysis_stats = load_analysis_stats()
@@ -1360,6 +1407,7 @@ def summarize_comments_with_ai(title, comments_dict, v_id, video_stats, video_to
         
         **Data:**
         Kommentarer: {validated_comments}{stats_info}
+        Transkription: {transcript_text if transcript_text else "Ingen transkription tillgänglig"}
 """
 
     logging.info(f"Prompt: {prompt}")
@@ -1482,6 +1530,11 @@ if __name__ == "__main__":
             logging.warning(f"Skipping members-only/private video {v_id} - content access restricted")
             continue
         
+        # Check for transcription failure (file too large or API error)
+        if transcript_text == "TRANSCRIPTION_FAILED":
+            logging.warning(f"Skipping video {v_id} - transcription failed and is required for analysis")
+            continue
+        
         # Find or create video entry
         video_entry = find_or_create_video(analysis_stats, channel_name, v_id, title)
         
@@ -1503,7 +1556,7 @@ if __name__ == "__main__":
         
         # Trigger comment analysis if comments are available
         if comments:
-            summarize_comments_with_ai(title, comments, v_id, video_stats, video_to_channel)
+            summarize_comments_with_ai(title, comments, v_id, video_stats, video_to_channel, transcript_text)
         
         # Save analysis stats after each video
         save_analysis_stats(analysis_stats)

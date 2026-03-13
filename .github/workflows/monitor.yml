@@ -18,10 +18,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install FFmpeg
+        run: |
+          sudo apt update
+          sudo apt install -y ffmpeg
       - name: Install dependencies
         run: |
-          pip install yt-dlp requests playwright
-          playwright install --with-deps
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
       - name: Run monitor
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
