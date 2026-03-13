@@ -772,6 +772,15 @@ def get_yt_data(v_id, deep_scrape=False, video_to_channel=None):
             # Fetch video stats
             video_stats = get_video_stats(v_id)
             
+            # Early detection for members-only/private content
+            # Check for indicators: zero engagement + title available suggests restricted content
+            if (video_stats['likes'] == 0 and 
+                video_stats['dislikes'] == 0 and 
+                video_stats['like_ratio'] == 0.0 and
+                title != 'Unknown'):
+                logging.warning(f"Early detection: Video {v_id} shows signs of members-only/private content (zero engagement but title available)")
+                return "MEMBERS_ONLY", None, None, None, None, None
+            
             ui_count = 0
             # [Count extraction logic preserved for brevity]
             count_locators = [('#count .yt-core-attributed-string', 'yt-core-attributed-string'), ('h2#count yt-formatted-string', 'yt-formatted-string'), ('yt-formatted-string.count-text', 'count-text')]
@@ -1427,11 +1436,16 @@ if __name__ == "__main__":
         # Get video data
         ui_count, comments, title, video_stats, transcript_text, ai_analysis = get_yt_data(v_id, deep_scrape=True, video_to_channel=video_to_channel)
         
+        # Check for early members-only/private content detection
+        if title == "MEMBERS_ONLY":
+            logging.warning(f"Skipping members-only/private video {v_id} - detected during initial fetch (zero engagement but title available)")
+            continue
+        
         if title is None:
             logging.warning(f"Skipping video {v_id} due to scraping failure.")
             continue
         
-        # Check for members-only/private content
+        # Check for members-only/private content (late detection from transcription)
         if transcript_text == "MEMBERS_ONLY":
             logging.warning(f"Skipping members-only/private video {v_id} - content access restricted")
             continue
