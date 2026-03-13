@@ -7,6 +7,7 @@ import sys
 import logging
 import hashlib
 import subprocess
+from datetime import datetime
 from dotenv import load_dotenv
 from groq import Groq
 from playwright.sync_api import sync_playwright, TimeoutError
@@ -34,6 +35,35 @@ if not GEMINI_API_KEY:
 # Setup logging and encoding
 sys.stdout.reconfigure(encoding='utf-8')
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+def setup_run_logging():
+    """Setup file-based logging for individual runs with sequential numbering"""
+    # Find existing run logs to determine next number
+    run_logs = [f for f in os.listdir('.') if f.startswith('runlog') and f.endswith('.log')]
+    run_numbers = []
+    
+    for log_file in run_logs:
+        try:
+            # Extract number from filename like "runlog1.log", "runlog2.log", etc.
+            number = int(log_file.replace('runlog', '').replace('.log', ''))
+            run_numbers.append(number)
+        except ValueError:
+            continue
+    
+    next_number = max(run_numbers) + 1 if run_numbers else 1
+    run_log_file = f"runlog{next_number}.log"
+    
+    # Create file handler for run logging
+    file_handler = logging.FileHandler(run_log_file, mode='w', encoding='utf-8')
+    file_handler.setLevel(logging.INFO)
+    file_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(file_formatter)
+    
+    # Add file handler to root logger
+    logging.getLogger().addHandler(file_handler)
+    
+    logging.info(f"=== RUN {next_number} STARTED at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===")
+    return run_log_file
 
 # Configuration
 # CHANNELS = ['CarlFredrikAlexanderRask']
@@ -1373,6 +1403,9 @@ def summarize_comments_with_ai(title, comments_dict, v_id, video_stats, video_to
 
 # --- MAIN LOGIC ---
 if __name__ == "__main__":
+    # Setup run logging with sequential numbering
+    run_log_file = setup_run_logging()
+    
     logging.info("Starting YouTube video analyzer...")
     
     # 1. Fetch new videos from channels
@@ -1430,4 +1463,5 @@ if __name__ == "__main__":
         save_analysis_stats(analysis_stats)
         time.sleep(2)  # Brief pause between videos
     
-    logging.info("Analysis complete and state saved to analysis_stats.json.")
+    logging.info(f"=== RUN COMPLETE at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===")
+    logging.info(f"Run log saved to: {run_log_file}")
