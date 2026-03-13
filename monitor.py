@@ -66,7 +66,7 @@ def setup_run_logging():
     return run_log_file
 
 # Configuration
-CHANNELS = ['CarlFredrikAlexanderRask']
+CHANNELS = ['ANJO1', 'CarlFredrikAlexanderRask']
 # CHANNELS = ['CarlFredrikAlexanderRask', 'ANJO1', 'MotVikten', 'Skuldis']
 STATE_FILE = "comment_state.json"
 ANALYSIS_STATS_FILE = "analysis_stats.json"  # Track video analysis counts per channel
@@ -983,7 +983,7 @@ def get_transcript_and_analysis(v_id, title):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([f"https://www.youtube.com/watch?v={v_id}"])
             
-        logging.info(f"Audio downloaded successfully for {v_id}.")
+        logging.info(f"Audio downloaded successfully for {v_id}. File size: {os.path.getsize(audio_filepath):,} bytes")
         
         # Dynamically trim audio based on duration to respect Groq's ASPH rate limits (7200s/hour)
         # Trim to first 45 minutes for safety, as longer videos would exceed limits.
@@ -1000,7 +1000,7 @@ def get_transcript_and_analysis(v_id, title):
             # Replace original with trimmed version
             os.remove(audio_filepath)
             audio_filepath = trimmed_filepath
-            logging.info("Audio trimmed successfully using yt-dlp.")
+            logging.info(f"Audio trimmed successfully using yt-dlp. New file size: {os.path.getsize(audio_filepath):,} bytes")
         except Exception as ydl_trim_e:
             logging.warning(f"Audio trimming failed: {ydl_trim_e}. Proceeding with full audio - may hit rate limits.")
         
