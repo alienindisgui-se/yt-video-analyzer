@@ -149,7 +149,7 @@ class ModelManager:
         if GEMINI_API_KEY:
             try:
                 self.gemini_client = genai.Client(api_key=GEMINI_API_KEY)
-                logging.info("Gemini client initialized successfully")
+                # logging.info("Gemini client initialized successfully")
             except Exception as e:
                 logging.warning(f"Failed to initialize Gemini client: {e}")
         else:
@@ -549,7 +549,7 @@ def fetch_latest_videos(channels):
                 if isinstance(video, dict) and "video_id" in video:
                     analyzed_videos.add(video["video_id"])
     
-    logging.info(f"Found {len(analyzed_videos)} previously analyzed videos")
+    # logging.info(f"Found {len(analyzed_videos)} previously analyzed videos")
     
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -593,7 +593,7 @@ def fetch_latest_videos(channels):
                         if v_id not in analyzed_videos:
                             latest_videos.append(v_id)
                             video_to_channel[v_id] = channel
-                            logging.info(f"Found new video {v_id} for channel {channel}")
+                            # logging.info(f"Found new video {v_id} for channel {channel}")
                         else:
                             logging.info(f"Video {v_id} already analyzed, skipping")
                 else:
@@ -712,7 +712,7 @@ def add_analysis_to_video(video, analysis_type, input_prompt, output, model):
 
 def get_yt_data(v_id, deep_scrape=False, video_to_channel=None):
     user_agent = random.choice(USER_AGENTS)
-    logging.info(f"Selected user agent for scraping comments: {user_agent}")
+    # logging.info(f"Selected user agent for scraping comments: {user_agent}")
     
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -779,7 +779,7 @@ def get_yt_data(v_id, deep_scrape=False, video_to_channel=None):
                 logging.info(f"Starting deep scrape for '{title}'. UI reports ~{ui_count} comments.")
                 
                 # Phase 1: Load all top-level threads by scrolling
-                logging.info("Loading all top-level comment threads...")
+                # logging.info("Loading all top-level comment threads...")
                 last_thread_count = 0
                 no_change = 0
                 while True:
@@ -789,7 +789,7 @@ def get_yt_data(v_id, deep_scrape=False, video_to_channel=None):
                     if current_thread == last_thread_count:
                         no_change += 1
                         if no_change >= 3:
-                            logging.info(f"Loaded {current_thread} top-level threads.")
+                            # logging.info(f"Loaded {current_thread} top-level threads.")
                             break
                     else:
                         no_change = 0
@@ -821,7 +821,7 @@ def get_yt_data(v_id, deep_scrape=False, video_to_channel=None):
                         # logging.info(f"Iteration {i+1}: Dispatched {clicks_dispatched} clicks via JS.")
                         
                         if clicks_dispatched == 0:
-                            logging.info("No more expansion buttons found. Expansion complete.")
+                            # logging.info("No more expansion buttons found. Expansion complete.")
                             break
                             
                         # Wait a moment for the requested replies to render in the DOM
@@ -835,19 +835,19 @@ def get_yt_data(v_id, deep_scrape=False, video_to_channel=None):
                         logging.warning(f"Iteration {i+1} JS click failed: {str(e).splitlines()[0]}")
                         break
 
-                logging.info("Proceeding to final extraction.")
+                # logging.info("Proceeding to final extraction.")
 
                 # Phase 3: Final scroll to ensure all loaded
-                logging.info("Performing final scroll to load any remaining content...")
+                # logging.info("Performing final scroll to load any remaining content...")
                 page.evaluate("document.scrollingElement.scrollTop = document.scrollingElement.scrollHeight")
                 page.wait_for_timeout(5000)
 
                 # Extract all loaded comments
-                logging.info("Extracting all loaded comments...")
+                # logging.info("Extracting all loaded comments...")
                 author_locs = page.locator('#author-text')
                 text_locs = page.locator('#content-text')
                 extracted_count = text_locs.count()
-                logging.info(f"Found {extracted_count} comment texts for extraction (including replies).")
+                # logging.info(f"Found {extracted_count} comment texts for extraction (including replies).")
                 for i in range(extracted_count):
                     try:
                         author = author_locs.nth(i).text_content().strip()
@@ -1053,173 +1053,173 @@ def get_transcript_and_analysis(v_id, title):
         logging.error(f"Groq analysis failed for {v_id}: {e}")
         return full_text, None
 
-def analyze_video_comprehensive(v_id, title, comments_dict, video_stats, transcript_text=None, video_to_channel=None):
-    """Unified analysis combining transcript content and comment sentiment in one AI call."""
-    if not GROQ_API_KEY:
-        logging.warning("No GROQ_API_KEY found. Skipping comprehensive AI analysis.")
-        return None
+# def analyze_video_comprehensive(v_id, title, comments_dict, video_stats, transcript_text=None, video_to_channel=None):
+#     """Unified analysis combining transcript content and comment sentiment in one AI call."""
+#     if not GROQ_API_KEY:
+#         logging.warning("No GROQ_API_KEY found. Skipping comprehensive AI analysis.")
+#         return None
 
-    logging.info(f"Generating comprehensive AI analysis for video: {title}")
+#     logging.info(f"Generating comprehensive AI analysis for video: {title}")
     
-    # Get the model with highest capacity for this analysis
-    max_tokens = max(model_manager.model_limits.values())
-    logging.info(f"Using max token limit for comprehensive analysis: {max_tokens}")
+#     # Get the model with highest capacity for this analysis
+#     max_tokens = max(model_manager.model_limits.values())
+#     logging.info(f"Using max token limit for comprehensive analysis: {max_tokens}")
     
-    # Prepare transcript section with size validation
-    transcript_section = ""
-    if transcript_text:
-        # Reserve tokens for other sections (stats, comments, instructions)
-        transcript_tokens_available = int(max_tokens * 0.4)  # 40% for transcript
-        validated_transcript, transcript_tokens, was_trimmed = validate_and_trim_content(
-            transcript_text, transcript_tokens_available, "transcript", "balanced"
-        )
-        transcript_section = f"**VIDEO TRANSCRIPT:**\n{validated_transcript}"
-        if was_trimmed:
-            logging.info(f"Transcript trimmed from {len(transcript_text)} to {len(validated_transcript)} chars")
-    else:
-        transcript_section = "**VIDEO TRANSCRIPT:**\n(No transcript available - captions disabled)"
+#     # Prepare transcript section with size validation
+#     transcript_section = ""
+#     if transcript_text:
+#         # Reserve tokens for other sections (stats, comments, instructions)
+#         transcript_tokens_available = int(max_tokens * 0.4)  # 40% for transcript
+#         validated_transcript, transcript_tokens, was_trimmed = validate_and_trim_content(
+#             transcript_text, transcript_tokens_available, "transcript", "balanced"
+#         )
+#         transcript_section = f"**VIDEO TRANSCRIPT:**\n{validated_transcript}"
+#         if was_trimmed:
+#             logging.info(f"Transcript trimmed from {len(transcript_text)} to {len(validated_transcript)} chars")
+#     else:
+#         transcript_section = "**VIDEO TRANSCRIPT:**\n(No transcript available - captions disabled)"
     
-    # Prepare video stats section
-    stats_section = f"**VIDEO ENGAGEMENT:**\n{video_stats['likes']:,} likes, {video_stats['dislikes']:,} dislikes ({video_stats['like_ratio']:.1f}% like ratio)"
+#     # Prepare video stats section
+#     stats_section = f"**VIDEO ENGAGEMENT:**\n{video_stats['likes']:,} likes, {video_stats['dislikes']:,} dislikes ({video_stats['like_ratio']:.1f}% like ratio)"
     
-    # Prepare comments section with size validation
-    comments_section = ""
-    if comments_dict:
-        texts = [c['t'] for c in comments_dict.values() if not c.get('deleted', False)]
-        if texts:
-            max_comments = SETTINGS.get("max_comments", 150)
-            sample_texts = texts[:max_comments]
-            comments_string = "\n".join([f"- {t}" for t in sample_texts])
+#     # Prepare comments section with size validation
+#     comments_section = ""
+#     if comments_dict:
+#         texts = [c['t'] for c in comments_dict.values() if not c.get('deleted', False)]
+#         if texts:
+#             max_comments = SETTINGS.get("max_comments", 150)
+#             sample_texts = texts[:max_comments]
+#             comments_string = "\n".join([f"- {t}" for t in sample_texts])
             
-            # Reserve tokens for comments (30% of total)
-            comments_tokens_available = int(max_tokens * 0.3)
-            validated_comments, comment_tokens, was_trimmed = validate_and_trim_content(
-                comments_string, comments_tokens_available, "comments", "balanced"
-            )
-            comments_section = f"**AUDIENCE COMMENTS:**\n{validated_comments}"
-            if was_trimmed:
-                logging.info(f"Comments trimmed from {len(comments_string)} to {len(validated_comments)} chars")
-        else:
-            comments_section = "**AUDIENCE COMMENTS:**\n(No comments available)"
-    else:
-        comments_section = "**AUDIENCE COMMENTS:**\n(No comments available)"
+#             # Reserve tokens for comments (30% of total)
+#             comments_tokens_available = int(max_tokens * 0.3)
+#             validated_comments, comment_tokens, was_trimmed = validate_and_trim_content(
+#                 comments_string, comments_tokens_available, "comments", "balanced"
+#             )
+#             comments_section = f"**AUDIENCE COMMENTS:**\n{validated_comments}"
+#             if was_trimmed:
+#                 logging.info(f"Comments trimmed from {len(comments_string)} to {len(validated_comments)} chars")
+#         else:
+#             comments_section = "**AUDIENCE COMMENTS:**\n(No comments available)"
+#     else:
+#         comments_section = "**AUDIENCE COMMENTS:**\n(No comments available)"
     
-    # Create comprehensive prompt
-    prompt = f"""Analyze this YouTube video comprehensively:
+#     # Create comprehensive prompt
+#     prompt = f"""Analyze this YouTube video comprehensively:
 
-{transcript_section}
+# {transcript_section}
 
-{stats_section}
+# {stats_section}
 
-{comments_section}
+# {comments_section}
 
-**ANALYSIS REQUEST:**
-Provide a unified analysis covering:
+# **ANALYSIS REQUEST:**
+# Provide a unified analysis covering:
 
-**CONTENT SUMMARY:** Key topics, arguments, and narrative structure from the video transcript
+# **CONTENT SUMMARY:** Key topics, arguments, and narrative structure from the video transcript
 
-**AUDIENCE REACTION:** Comment sentiment, dominant themes, and public reception patterns  
+# **AUDIENCE REACTION:** Comment sentiment, dominant themes, and public reception patterns  
 
-**CONTENT-RECEPTION ALIGNMENT:** How well the video content aligns with audience reactions
+# **CONTENT-RECEPTION ALIGNMENT:** How well the video content aligns with audience reactions
 
-**LEGAL ASSESSMENT:** Defamation risk assessment (always start with 'Sannolikheten är [hög/låg] för förtal')
+# **LEGAL ASSESSMENT:** Defamation risk assessment (always start with 'Sannolikheten är [hög/låg] för förtal')
 
-**MONITORING INSIGHTS:** Suggested tags and themes for monitoring purposes
+# **MONITORING INSIGHTS:** Suggested tags and themes for monitoring purposes
 
-**FORMATTING:** 
-- Structure clearly with bold headings
-- Be concise but comprehensive
-- Only mention like ratio if below 90%
-- Include a blank line (\n\n) between each analysis section
-- Provide direct analysis without thinking blocks or meta-commentary
-"""
+# **FORMATTING:** 
+# - Structure clearly with bold headings
+# - Be concise but comprehensive
+# - Only mention like ratio if below 90%
+# - Include a blank line (\n\n) between each analysis section
+# - Provide direct analysis without thinking blocks or meta-commentary
+# """
     
-    # Log final prompt size
-    final_tokens = estimate_tokens(prompt, "prompt")
-    logging.info(f"Final comprehensive prompt size: {final_tokens}/{max_tokens} tokens ({final_tokens/max_tokens*100:.1f}%)")
+    # # Log final prompt size
+    # final_tokens = estimate_tokens(prompt, "prompt")
+    # logging.info(f"Final comprehensive prompt size: {final_tokens}/{max_tokens} tokens ({final_tokens/max_tokens*100:.1f}%)")
     
-    # Store prompt in analysis stats immediately after creation
-    import time
-    current_timestamp = time.time()
+    # # Store prompt in analysis stats immediately after creation
+    # import time
+    # current_timestamp = time.time()
     
-    analysis_stats = load_analysis_stats()
-    # Determine channel name from available data or use default
-    channel_name = "comprehensive_analysis"  # Default if we can't determine channel
+    # analysis_stats = load_analysis_stats()
+    # # Determine channel name from available data or use default
+    # channel_name = "comprehensive_analysis"  # Default if we can't determine channel
     
-    # Use provided video_to_channel mapping
-    if video_to_channel:
-        channel_name = video_to_channel.get(v_id, "Unknown Channel")
-        if channel_name != "Unknown Channel":
-            logging.info(f"Using provided channel name '{channel_name}' for video {v_id}")
-        else:
-            logging.warning(f"Video {v_id} not found in provided channel mapping")
-    else:
-        logging.warning(f"No video_to_channel mapping provided for video {v_id}")
+    # # Use provided video_to_channel mapping
+    # if video_to_channel:
+    #     channel_name = video_to_channel.get(v_id, "Unknown Channel")
+    #     if channel_name != "Unknown Channel":
+    #         logging.info(f"Using provided channel name '{channel_name}' for video {v_id}")
+    #     else:
+    #         logging.warning(f"Video {v_id} not found in provided channel mapping")
+    # else:
+    #     logging.warning(f"No video_to_channel mapping provided for video {v_id}")
     
-    # Find or create video entry
-    video_entry = find_or_create_video(analysis_stats, channel_name, v_id, title)
+    # # Find or create video entry
+    # video_entry = find_or_create_video(analysis_stats, channel_name, v_id, title)
     
-    # Save transcript section to analysis
-    add_analysis_to_video(video_entry, "transcript", transcript_section, "transcript_data", "system")
+    # # Save transcript section to analysis
+    # add_analysis_to_video(video_entry, "transcript", transcript_section, "transcript_data", "system")
     
-    # Save updated stats
-    save_analysis_stats(analysis_stats)
+    # # Save updated stats
+    # save_analysis_stats(analysis_stats)
     
-    # Add comprehensive analysis
-    add_analysis_to_video(video_entry, "comprehensive", prompt, "[Analysis pending]", "pending")
+    # # Add comprehensive analysis
+    # add_analysis_to_video(video_entry, "comprehensive", prompt, "[Analysis pending]", "pending")
     
-    # Save updated stats
-    save_analysis_stats(analysis_stats)
+    # # Save updated stats
+    # save_analysis_stats(analysis_stats)
     
-    logging.info(f"Saved comprehensive analysis prompt to JSON for video {v_id} (channel: {channel_name})")
+    # logging.info(f"Saved comprehensive analysis prompt to JSON for video {v_id} (channel: {channel_name})")
     
-    try:
-        # Use ModelManager for intelligent model selection and fallback
-        analysis, used_model = model_manager.try_model_with_fallback(prompt)
+    # try:
+    #     # Use ModelManager for intelligent model selection and fallback
+    #     analysis, used_model = model_manager.try_model_with_fallback(prompt)
         
-        if not analysis:
-            logging.error("Failed to generate comprehensive AI analysis with all available models")
-            return None
+    #     if not analysis:
+    #         logging.error("Failed to generate comprehensive AI analysis with all available models")
+    #         return None
         
-        # Clean AI output to remove any unwanted formatting
-        cleaned_analysis = clean_ai_output(analysis)
+    #     # Clean AI output to remove any unwanted formatting
+    #     cleaned_analysis = clean_ai_output(analysis)
         
-        # Update the video entry with actual analysis output
-        add_analysis_to_video(video_entry, "comprehensive", prompt, cleaned_analysis, used_model)
-        save_analysis_stats(analysis_stats)
+    #     # Update the video entry with actual analysis output
+    #     add_analysis_to_video(video_entry, "comprehensive", prompt, cleaned_analysis, used_model)
+    #     save_analysis_stats(analysis_stats)
         
-        logging.info(f"Comprehensive AI analysis completed using model '{used_model}'")
+    #     logging.info(f"Comprehensive AI analysis completed using model '{used_model}'")
         
-        # Generate embed color based on like ratio gradient
-        embed_color = get_gradient_color(video_stats['like_ratio'])
-        logging.info(f"Generated gradient color: {hex(embed_color)} for like ratio: {video_stats['like_ratio']:.1f}%")
+    #     # Generate embed color based on like ratio gradient
+    #     embed_color = get_gradient_color(video_stats['like_ratio'])
+    #     logging.info(f"Generated gradient color: {hex(embed_color)} for like ratio: {video_stats['like_ratio']:.1f}%")
         
-        # Send comprehensive analysis to Discord
-        if WEBHOOK:
-            # Use Discord title from configuration with video title and ID
-            discord_title = PROMPTS["discord_title"].format(title=title, v_id=v_id)
+    #     # Send comprehensive analysis to Discord
+    #     if WEBHOOK:
+    #         # Use Discord title from configuration with video title and ID
+    #         discord_title = PROMPTS["discord_title"].format(title=title, v_id=v_id)
             
-            # Get thumbnail URL
-            thumbnail_url = get_thumbnail_url(v_id)
+    #         # Get thumbnail URL
+    #         thumbnail_url = get_thumbnail_url(v_id)
             
-            payload = {
-                "embeds": [{
-                    "title": discord_title,
-                    "color": embed_color,
-                    "image": {
-                        "url": thumbnail_url
-                    },
-                    "fields": [
-                        {"name": PROMPTS["channel_field"], "value": channel_name, "inline": True},
-                        {"name": PROMPTS["video_field"], "value": f"[{title}](https://www.youtube.com/watch?v={v_id})", "inline": False},
-                    ],
-                    "description": cleaned_analysis
-                }]
-            }
-            requests.post(WEBHOOK, json=payload)
+    #         payload = {
+    #             "embeds": [{
+    #                 "title": discord_title,
+    #                 "color": embed_color,
+    #                 "image": {
+    #                     "url": thumbnail_url
+    #                 },
+    #                 "fields": [
+    #                     {"name": PROMPTS["channel_field"], "value": channel_name, "inline": True},
+    #                     {"name": PROMPTS["video_field"], "value": f"[{title}](https://www.youtube.com/watch?v={v_id})", "inline": False},
+    #                 ],
+    #                 "description": cleaned_analysis
+    #             }]
+    #         }
+    #         requests.post(WEBHOOK, json=payload)
             
-    except Exception as e:
-        logging.error(f"Failed to generate comprehensive AI analysis: {e}")
+    # except Exception as e:
+    #     logging.error(f"Failed to generate comprehensive AI analysis: {e}")
 
 def summarize_comments_with_ai(title, comments_dict, v_id, video_stats, video_to_channel=None):
     """Generate AI summary of comments and send to Discord webhook"""
@@ -1301,7 +1301,7 @@ def summarize_comments_with_ai(title, comments_dict, v_id, video_stats, video_to
         
         # Generate embed color based on like ratio gradient
         embed_color = get_gradient_color(video_stats['like_ratio'])
-        logging.info(f"Generated gradient color: {hex(embed_color)} for like ratio: {video_stats['like_ratio']:.1f}%")
+        # logging.info(f"Generated gradient color: {hex(embed_color)} for like ratio: {video_stats['like_ratio']:.1f}%")
         
         # Determine channel name (used for tracking even without webhook)
         channel_name = "Unknown Channel"
@@ -1310,7 +1310,7 @@ def summarize_comments_with_ai(title, comments_dict, v_id, video_stats, video_to
         if video_to_channel:
             channel_name = video_to_channel.get(v_id, "Unknown Channel")
             if channel_name != "Unknown Channel":
-                logging.info(f"Using provided channel name '{channel_name}' for video {v_id}")
+                # logging.info(f"Using provided channel name '{channel_name}' for video {v_id}")
             else:
                 logging.warning(f"Video {v_id} not found in provided channel mapping")
         else:
