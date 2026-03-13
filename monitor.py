@@ -1350,7 +1350,7 @@ def summarize_comments_with_ai(title, comments_dict, v_id, video_stats, video_to
         if video_to_channel:
             channel_name = video_to_channel.get(v_id, "Unknown Channel")
             if channel_name != "Unknown Channel":
-                # logging.info(f"Using provided channel name '{channel_name}' for video {v_id}")
+                logging.info(f"Using provided channel name '{channel_name}' for video {v_id}")
             else:
                 logging.warning(f"Video {v_id} not found in provided channel mapping")
         else:
