@@ -66,7 +66,7 @@ def setup_run_logging():
     return run_log_file
 
 # Configuration
-CHANNELS = ['ANJO1']
+CHANNELS = ['CarlFredrikAlexanderRask']
 # CHANNELS = ['CarlFredrikAlexanderRask', 'ANJO1', 'MotVikten', 'Skuldis']
 STATE_FILE = "comment_state.json"
 ANALYSIS_STATS_FILE = "analysis_stats.json"  # Track video analysis counts per channel
@@ -767,26 +767,27 @@ def get_yt_data(v_id, deep_scrape=False, video_to_channel=None):
             # Check for private video indicators
             private_indicators = [
                 "This video is private",
-                "Private video",
+                "Private video", 
                 "Video unavailable",
                 "This video is not available"
             ]
             
-            # Check for members-only content indicators  
+            # Check for members-only content indicators (more specific patterns)
             members_indicators = [
-                "Join this channel to get access to members-only content",
-                "Become a member",
-                "Members-only content",
-                "channel members"
+                "Join this channel to get access to members-only content like this video",
+                "Become a member to watch this video",
+                "This video is only available to members"
             ]
             
-            # Check page title for private indicators
-            if any(indicator.lower() in page_title.lower() for indicator in private_indicators):
+            # Check page title for private indicators (more strict)
+            page_title_lower = page_title.lower()
+            if any(indicator.lower() == page_title_lower or indicator.lower() in page_title_lower and "private" in page_title_lower for indicator in private_indicators):
                 logging.warning(f"Private video detected in page title for {v_id}: {page_title}")
                 return "MEMBERS_ONLY", None, None, None, None, None
                 
-            # Check page content for members-only indicators
-            if any(indicator.lower() in page_content.lower() for indicator in members_indicators):
+            # Check page content for members-only indicators (more specific matching)
+            page_content_lower = page_content.lower()
+            if any(indicator.lower() in page_content_lower for indicator in members_indicators):
                 logging.warning(f"Members-only content detected in page content for {v_id}")
                 return "MEMBERS_ONLY", None, None, None, None, None
             
