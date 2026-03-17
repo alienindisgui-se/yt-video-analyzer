@@ -226,7 +226,7 @@ class ModelManager:
         self.model_limits = {
             DEFAULT_MODEL: 128000,
             "qwen/qwen3-32b": 32000,
-            "llama-3.1-8b-instant": 32000,
+            AI_ANALYSIS_MODEL: 32000,
         }
 
         self.gemini_client = None  # Explicitly disabled for general use
@@ -256,7 +256,7 @@ class ModelManager:
         models_by_capacity = [
             (DEFAULT_MODEL, 10000),  # Highest capacity
             ("qwen/qwen3-32b", 4500),
-            ("llama-3.1-8b-instant", 4500),
+            (AI_ANALYSIS_MODEL, 4500),
         ]
         
         models_to_try = []
@@ -628,6 +628,7 @@ def is_groq_whisper_available():
 
 # Constants
 DEFAULT_MODEL = "llama-3.3-70b-versatile"
+AI_ANALYSIS_MODEL = "llama-3.1-8b-instant"
 UNKNOWN_CHANNEL = "Unknown Channel"
 UNKNOWN_DATE = "Okänt datum"
 WORST_AUDIO_FORMAT = "worstaudio/worst"
@@ -1546,11 +1547,11 @@ def _parse_date_from_text(date_text):
             groups = match.groups()
             if len(groups) == 3:
                 # Check if this is English abbreviation format
-                if any(month_abbr in date_text.lower() for month_abbr in list(ENGLISH_MONTHS.keys())):
+                if any(month_abbr in date_text.lower() for month_abbr in ENGLISH_MONTHS.keys()):
                     month_abbr, day, year = groups
                     return _parse_english_date(month_abbr, day, year)
                 # Check if this is Swedish format
-                elif any(month_name in date_text.lower() for month_name in list(SWEDISH_MONTHS.keys())):
+                elif any(month_name in date_text.lower() for month_name in SWEDISH_MONTHS.keys()):
                     day, month_name, year = groups
                     return _parse_swedish_date(day, month_name, year)
                 else:  # YYYY-MM-DD format
@@ -2275,12 +2276,12 @@ def _handle_oversized_file(v_id, audio_filepath, ffmpeg_dir, ffmpeg_available):
         return None, "TRANSCRIPTION_FAILED", None, None
     
     # Try balanced compression first
-    success, message = _try_balanced_compression(v_id, audio_filepath, ffmpeg_dir)
+    success, _message = _try_balanced_compression(v_id, audio_filepath, ffmpeg_dir)
     if success:
         return _finalize_transcription_attempt(audio_filepath, v_id)
     
     # Try ultra-aggressive as final fallback
-    success, message = _try_ultra_aggressive_compression(v_id, audio_filepath, ffmpeg_dir)
+    success, _message = _try_ultra_aggressive_compression(v_id, audio_filepath, ffmpeg_dir)
     if success:
         return _finalize_transcription_attempt(audio_filepath, v_id)
     
@@ -2382,7 +2383,7 @@ def _attempt_transcription(audio_filepath, v_id, file_size):
             return full_text, transcription_model
         
         # Try Gemini as final fallback
-        full_text, transcription_model = _try_gemini_fallback(audio_filepath, v_id)
+        full_text, transcription_model = _try_gemini_fallback(v_id)
         if full_text:
             return full_text, transcription_model
         
@@ -2397,7 +2398,7 @@ def _attempt_transcription(audio_filepath, v_id, file_size):
         if full_text:
             return full_text, transcription_model
         
-        full_text, transcription_model = _try_gemini_fallback(audio_filepath, v_id)
+        full_text, transcription_model = _try_gemini_fallback(v_id)
         if full_text:
             return full_text, transcription_model
         
@@ -2449,7 +2450,7 @@ def _perform_ai_analysis(v_id, title, summarized_transcript):
         
         # Call Groq API
         response = model_manager.client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model=AI_ANALYSIS_MODEL,
             messages=[
                 {"role": "system", "content": "Du är en klinisk medieanalytiker."},
                 {"role": "user", "content": prompt}
@@ -2486,7 +2487,7 @@ def _store_analysis_results(v_id, channel_name, title, publication_date, full_te
         "raw_transcript",
         _prepare_analysis_prompt(title, summarize_transcript(full_text, title)),
         full_text if full_text else "No transcription available",
-        "llama-3.1-8b-instant",
+        AI_ANALYSIS_MODEL,
     )
     
     # Add AI analysis
@@ -2496,7 +2497,7 @@ def _store_analysis_results(v_id, channel_name, title, publication_date, full_te
             "ai_analysis",
             _prepare_analysis_prompt(title, summarize_transcript(full_text, title)),
             ai_analysis,
-            "llama-3.1-8b-instant",
+            AI_ANALYSIS_MODEL,
         )
 
 
@@ -2553,6 +2554,8 @@ def get_transcript_and_analysis(
             _store_analysis_results(v_id, channel_name, title, publication_date, full_text, ai_analysis)
         else:
             ai_analysis = None
+        
+        return full_text, ai_analysis, transcription_model or "whisper-large-v3-turbo", "whisper-large-v3-turbo"
         
     finally:
         _cleanup_audio_file(audio_filepath, v_id)
