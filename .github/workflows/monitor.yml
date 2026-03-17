@@ -34,7 +34,7 @@ jobs:
         run: |
           git config --global user.name "Watchdog Bot"
           git config --global user.email "bot@github.com"
-          git add comment_state.json
-          git commit -m "Update comment state" || exit 0
+          git add analysis_stats.json
+          git commit -m "Update analysis stats" || exit 0
           git pull --rebase
           git push

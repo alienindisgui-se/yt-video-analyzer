@@ -811,7 +811,7 @@ def _handle_youtube_consent(page):
             logging.error("Failed to accept consent: " + str(e))
 
 
-def _extract_video_ids(page, max_videos, completed_videos):
+def _extract_video_ids(page, max_videos, completed_videos, channel_name):
     """Extract video IDs from page elements"""
     logging.info("=== FUNCTION START: _extract_video_ids ===")
     videos_found = 0
@@ -836,7 +836,7 @@ def _extract_video_ids(page, max_videos, completed_videos):
                 # Check if video is already completed
                 if v_id not in completed_videos:
                     latest_videos.append(v_id)
-                    video_to_channel[v_id] = v_id  # Temporary mapping
+                    video_to_channel[v_id] = channel_name  # Map to actual channel username
                     videos_found += 1
     
     return latest_videos, video_to_channel
@@ -858,7 +858,7 @@ def _fetch_channel_videos(page, channel, max_videos, completed_videos):
         page.wait_for_timeout(5000)
         
         # Extract video IDs
-        return _extract_video_ids(page, max_videos, completed_videos)
+        return _extract_video_ids(page, max_videos, completed_videos, channel)
         
     except Exception as e:
         logging.error(f"Failed to fetch videos for {channel}: {e}")
@@ -2013,13 +2013,22 @@ def transcribe_with_assemblyai(audio_filepath, v_id):
         transcript = transcriber.transcribe(audio_filepath, config=config)
 
         if transcript.status == aai.TranscriptStatus.completed:
-            # Log AssemblyAI output
+            # Log AssemblyAI output (truncated for readability)
             logging.info("=== ASSEMBLYAI API OUTPUT ===")
             logging.info("Model: universal")
             logging.info(f"Status: {transcript.status}")
             logging.info(f"Output length: {len(transcript.text)} characters")
+            
+            # Show first 500 and last 500 characters for debugging
+            if len(transcript.text) > 1000:
+                first_500 = transcript.text[:500]
+                last_500 = transcript.text[-500:]
+                truncated_output = f"{first_500}\n...[truncated]...\n{last_500}"
+            else:
+                truncated_output = transcript.text
+            
             logging.info(
-                f"Output:\n{json.dumps(transcript.text, indent=2, ensure_ascii=False)}"
+                f"Output:\n{json.dumps(truncated_output, indent=2, ensure_ascii=False)}"
             )
             logging.info("=== END ASSEMBLYAI API OUTPUT ===")
 
@@ -2616,11 +2625,15 @@ if __name__ == "__main__":
         # Handle case where video_to_channel might be empty (from queue processing)
         if v_id in video_to_channel:
             channel_name = video_to_channel[v_id]
+            logging.info(f"Using channel username from CHANNELS list: {channel_name}")
         else:
-            # Use extracted channel name from YouTube page as primary source
+            # Use actual channel username from CHANNELS as primary source
+            # Find which channel this video belongs to by checking the video_to_channel mapping
+            # or fall back to extracted name only if absolutely necessary
             channel_name = (
                 extracted_channel_name if extracted_channel_name else UNKNOWN_CHANNEL
             )
+            logging.info(f"Using extracted channel name: {channel_name}")
 
         # If still unknown, try to find from analysis stats as final fallback
         if channel_name == UNKNOWN_CHANNEL:
