@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # YT Comment Deletion Tracker
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -211,3 +212,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## ⚠️ Disclaimer
 
 This tool is for educational and research purposes. Respect YouTube's Terms of Service and Discord's guidelines. Use responsibly and avoid overloading their servers with excessive requests.
+=======
+# yt-video-analyzer
+>>>>>>> origin/main
