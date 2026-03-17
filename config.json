@@ -2,27 +2,14 @@
   "language": "sv",
   "ai_models": {
     "primary": "qwen/qwen3-32b",
-    "fallback": ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"],
+    "fallback": [
+      "llama-3.1-8b-instant",
+      "llama-3.3-70b-versatile"
+    ],
     "models": {
-      "qwen/qwen3-32b": {
-        "provider": "groq", 
-        "tpd_limit": 500000,
-        "description": "Best for Swedish/English language accuracy"
-      },
-      "llama-3.1-8b-instant": {
-        "provider": "groq",
-        "tpd_limit": 500000,
-        "description": "Use only for bulk speed (less smart)"
-      },
-      "llama-3.3-70b-versatile": {
-        "provider": "groq",
-        "tpd_limit": 100000,
-        "description": "Legacy fallback model"
-      },
-      "gemini-2.0-flash": {
-        "provider": "gemini",
-        "description": "Google Gemini fallback when Groq models fail"
-      }
+      "qwen/qwen3-32b": {},
+      "llama-3.1-8b-instant": {},
+      "llama-3.3-70b-versatile": {}
     }
   },
   "prompts": {
@@ -31,17 +18,13 @@
       "discord_title": "🤖 AI-Analys: {title}",
       "channel_field": "Kanal",
       "video_field": "Video"
-    },
-    "en": {
-      "ai_summary": "You are a clinical media analyst. Provide a blunt and compact analysis of \"{title}\". Be objective and 'hard'.\n\n**Instructions:**\n1. **Summary:** Max 2 sentences on the dominant mood. ONLY mention the like/dislike ratio if likes are below 90%, weaving it in organically. If likes are 90% or higher, ignore the figure entirely.\n2. **Legal Assessment:** Always start with 'The probability is [high/low] for defamation.' Follow with max one sentence justifying the assessment (e.g., presence of criminal accusations, severe insults, or coordinated harassment).\n\n**CRITICAL - FOLLOW EXACTLY:**\n- ABSOLUTELY NO think blocks (```), reasoning or thought processes\n- DO NOT SHOW YOUR THINKING - provide only final analysis\n- Use NO markdown formatting or special characters\n- Bold ONLY the starting words (**Summary:** and **Legal Assessment:**)\n- No lists, no headings, no italics\n- Provide response as PLAIN TEXT with no formatting elements\n- START DIRECTLY with analysis, no introduction\n\n**Data:**\nComments: {comments_string}",
-      "discord_title": "🤖 AI Analysis: {title}",
-      "channel_field": "Channel",
-      "video_field": "Video"
     }
   },
   "settings": {
+    "videos_per_run": 1,
     "max_comments": 200,
-    "date_format": "%Y-%m-%d",
-    "transcript_langs": ["sv", "en", "en-US", "en-GB"]
-  }
+    "gemini_model": "gemini-3.1-flash-lite-preview",
+    "fetch_depth": 1
+  },
+  "rate_limits": {}
 }
