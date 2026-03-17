@@ -1422,569 +1422,558 @@ def add_analysis_to_video(video, analysis_type, input_prompt, output, model):
     )
 
 
-def get_yt_data(v_id, deep_scrape=False):
-    logging.info("=== FUNCTION START: get_yt_data ===")
-    user_agent = random.choice(USER_AGENTS)
+# Constants for browser interactions
+SCROLL_SCRIPT = "document.scrollingElement.scrollTop = document.scrollingElement.scrollHeight"
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        context = browser.new_context(
-            user_agent=user_agent,
-            viewport={"width": 1920, "height": 1080},
-            locale="en-US",
-            extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
-        )
-        page = context.new_page()
+# Constants for date parsing to avoid duplication
+SWEDISH_DATE_PATTERN = r"(\d{1,2})\s+(januari|februari|mars|april|maj|juni|juli|augusti|september|oktober|november|december)\s+(\d{4})"
+ENGLISH_DATE_PATTERN = r"(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+(\d{4})"
 
-        try:
-            page.goto(f"https://www.youtube.com/watch?v={v_id}", timeout=60000)
-            page.wait_for_load_state("networkidle")
-            page.evaluate("window.scrollBy(0, 800)")
+# Swedish months mapping
+SWEDISH_MONTHS = {
+    "januari": "01",
+    "februari": "02",
+    "mars": "03",
+    "april": "04",
+    "maj": "05",
+    "juni": "06",
+    "juli": "07",
+    "augusti": "08",
+    "september": "09",
+    "oktober": "10",
+    "november": "11",
+    "december": "12",
+}
 
-            # Check for private/members-only content indicators in page content
-            page_content = page.content()
-            page_title = page.title()
+# English months mapping
+ENGLISH_MONTHS = {
+    "jan": "01",
+    "feb": "02",
+    "mar": "03",
+    "apr": "04",
+    "may": "05",
+    "jun": "06",
+    "jul": "07",
+    "aug": "08",
+    "sep": "09",
+    "oct": "10",
+    "nov": "11",
+    "dec": "12",
+}
 
-            # Check for private video indicators
-            private_indicators = [
-                "This video is private",
-                "Private video",
-                "Video unavailable",
-                "This video is not available",
-            ]
+# Private video indicators
+PRIVATE_INDICATORS = [
+    "This video is private",
+    "Private video",
+    "Video unavailable",
+    "This video is not available",
+]
 
-            # Check for members-only content indicators (more specific patterns)
-            members_indicators = [
-                "Join this channel to get access to members-only content like this video",
-                "Become a member to watch this video",
-                "This video is only available to members",
-            ]
+# Members-only content indicators
+MEMBERS_INDICATORS = [
+    "Join this channel to get access to members-only content like this video",
+    "Become a member to watch this video",
+    "This video is only available to members",
+]
 
-            # Check page title for private indicators (more strict)
-            page_title_lower = page_title.lower()
-            if any(
-                indicator.lower() == page_title_lower
-                or indicator.lower() in page_title_lower
-                and "private" in page_title_lower
-                for indicator in private_indicators
-            ):
-                logging.warning(
-                    f"Private video detected in page title for {v_id}: {page_title}"
-                )
-                return (
-                    "MEMBERS_ONLY",
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    UNKNOWN_DATE,
-                    None,
-                    None,
-                    None,
-                )
 
-            # Check page content for members-only indicators (more specific matching)
-            page_content_lower = page_content.lower()
-            if any(
-                indicator.lower() in page_content_lower
-                for indicator in members_indicators
-            ):
-                logging.warning(
-                    f"Members-only content detected in page content for {v_id}"
-                )
-                return (
-                    "MEMBERS_ONLY",
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    UNKNOWN_DATE,
-                    None,
-                    None,
-                    None,
-                )
+def _is_private_video(page_title):
+    """Check if video is private based on title"""
+    page_title_lower = page_title.lower()
+    return any(
+        indicator.lower() == page_title_lower
+        or indicator.lower() in page_title_lower
+        and "private" in page_title_lower
+        for indicator in PRIVATE_INDICATORS
+    )
 
+
+def _is_members_only_content(page_content):
+    """Check if content is members-only based on page content"""
+    page_content_lower = page_content.lower()
+    return any(indicator.lower() in page_content_lower for indicator in MEMBERS_INDICATORS)
+
+
+def _get_members_only_response():
+    """Return standard members-only response tuple"""
+    return (
+        "MEMBERS_ONLY",
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        UNKNOWN_DATE,
+        None,
+        None,
+        None,
+    )
+
+
+def _parse_swedish_date(day, month_name, year):
+    """Parse Swedish date format"""
+    month_num = SWEDISH_MONTHS.get(month_name.lower(), "01")
+    if len(year) == 2:
+        year = f"20{year}"
+    return f"{year}-{month_num}-{day.zfill(2)}"
+
+
+def _parse_english_date(month_abbr, day, year):
+    """Parse English abbreviation date format"""
+    month_num = ENGLISH_MONTHS.get(month_abbr.lower(), "01")
+    if len(year) == 2:
+        year = f"20{year}"
+    return f"{year}-{month_num}-{day.zfill(2)}"
+
+
+def _parse_date_from_text(date_text):
+    """Parse various date formats from text"""
+    import re
+    
+    date_patterns = [
+        SWEDISH_DATE_PATTERN,
+        ENGLISH_DATE_PATTERN,
+        r"(\d{4})-(\d{2})-(\d{2})",
+        r"(\d{4})/(\d{2})/(\d{2})",
+        r"(\d{1,2})\s+(\d{1,2})\s+(\d{4})",
+        r"([A-Za-z]{3})\s+(\d{1,2}),?\s+(\d{4})",
+    ]
+    
+    for pattern in date_patterns:
+        match = re.search(pattern, date_text.lower())
+        if match:
+            groups = match.groups()
+            if len(groups) == 3:
+                # Check if this is English abbreviation format
+                if any(month_abbr in date_text.lower() for month_abbr in list(ENGLISH_MONTHS.keys())):
+                    month_abbr, day, year = groups
+                    return _parse_english_date(month_abbr, day, year)
+                # Check if this is Swedish format
+                elif any(month_name in date_text.lower() for month_name in list(SWEDISH_MONTHS.keys())):
+                    day, month_name, year = groups
+                    return _parse_swedish_date(day, month_name, year)
+                else:  # YYYY-MM-DD format
+                    year, month, day = groups
+                    return f"{year}-{month}-{day}"
+    return None
+
+
+def _search_dates_in_page_content(page_content):
+    """Search for date patterns in page content"""
+    import re
+    
+    content_patterns = [
+        r'"publishDate":"(\d{4}-\d{2}-\d{2})"',
+        r'"uploadDate":"(\d{4}-\d{2}-\d{2})"',
+        SWEDISH_DATE_PATTERN,
+    ]
+    
+    for pattern in content_patterns:
+        matches = re.findall(pattern, page_content)
+        if matches:
+            for match in matches:
+                if isinstance(match, tuple):
+                    day, month_name, year = match
+                    return _parse_swedish_date(day, month_name, year)
+                else:
+                    return match
+    return None
+
+
+def _extract_video_title(page):
+    """Extract video title from page"""
+    title_elem = page.locator("h1.ytd-watch-metadata yt-formatted-string")
+    return (
+        title_elem.text_content().strip()
+        if title_elem.count() > 0
+        else "Unknown"
+    )
+
+
+def _extract_channel_name(page, v_id):
+    """Extract channel name with fallback logic"""
+    try:
+        channel_selectors = [
+            "ytd-channel-name a.yt-simple-endpoint",
+            "ytd-video-owner-renderer a.yt-simple-endpoint",
+            "ytd-channel-name #channel-name",
+            "ytd-video-owner-renderer #channel-name",
+            "#owner #channel-name a",
+            ".ytd-channel-name a",
+        ]
+
+        for selector in channel_selectors:
             try:
-                page.wait_for_selector(
-                    "ytd-comments#comments", state="attached", timeout=15000
-                )
-                page.wait_for_timeout(3000)
-            except TimeoutError:
-                logging.warning(
-                    "Comments section did not attach in time. Video might have comments disabled."
-                )
-                return (
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    UNKNOWN_DATE,
-                    None,
-                    None,
-                    None,
-                )
-
-            title_elem = page.locator("h1.ytd-watch-metadata yt-formatted-string")
-            title = (
-                title_elem.text_content().strip()
-                if title_elem.count() > 0
-                else "Unknown"
-            )
-
-            # Extract channel name from YouTube page
-            channel_name = None
-            try:
-                # Try multiple selectors for channel name
-                channel_selectors = [
-                    "ytd-channel-name a.yt-simple-endpoint",  # Channel name link
-                    "ytd-video-owner-renderer a.yt-simple-endpoint",  # Video owner channel
-                    "ytd-channel-name #channel-name",  # Channel name text
-                    "ytd-video-owner-renderer #channel-name",  # Video owner channel text
-                    "#owner #channel-name a",  # Alternative channel name
-                    ".ytd-channel-name a",  # Another variant
-                ]
-
-                for selector in channel_selectors:
-                    try:
-                        channel_elem = page.locator(selector)
-                        if channel_elem.count() > 0:
-                            channel_text = channel_elem.first.text_content().strip()
-                            if channel_text and channel_text != "Unknown":
-                                channel_name = channel_text
-                                logging.info(
-                                    f"Extracted channel name '{channel_name}' for video {v_id}"
-                                )
-                                break
-                    except Exception:
-                        continue
-
-                # Extract YouTube publication date from metadata
-                publication_date = UNKNOWN_DATE
-                try:
-                    # Try to find publication date in page metadata
-                    date_selectors = [
-                        "#description-inner yt-formatted-string.ytd-video-secondary-info-renderer",
-                        "#info-strings yt-formatted-string.ytd-video-secondary-info-renderer",
-                        ".ytd-video-secondary-info-renderer yt-formatted-string",
-                        "#info-text",
-                        ".ytd-video-primary-info-renderer .ytd-simple-timestamp-renderer",
-                        "ytd-video-view-model-renderer .ytd-simple-timestamp-renderer",
-                        "ytd-metadata-row-renderer .ytd-simple-timestamp-renderer",
-                        ".ytd-simple-timestamp-renderer",
-                        "#meta-contents ytd-video-secondary-info-renderer yt-formatted-string",
-                        "span.ytd-video-secondary-info-renderer",
-                    ]
-
-                    found_date = False
-                    for selector in date_selectors:
-                        try:
-                            date_elem = page.locator(selector)
-                            if date_elem.count() > 0:
-                                date_text = date_elem.first.text_content().strip()
-
-                                # Parse various date formats from YouTube
-                                import re
-
-                                # Try to extract date from various formats
-                                date_patterns = [
-                                    r"(\d{1,2})\s+(januari|februari|mars|april|maj|juni|juli|augusti|september|oktober|november|december)\s+(\d{4})",
-                                    r"(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+(\d{4})",  # English abbreviations
-                                    r"(\d{4})-(\d{2})-(\d{2})",
-                                    r"(\d{4})/(\d{2})/(\d{2})",
-                                    r"(\d{1,2})\s+(\d{1,2})\s+(\d{4})",  # DD MM YYYY format
-                                    r"([A-Za-z]{3})\s+(\d{1,2}),?\s+(\d{4})",  # Mar 6, 2026 format
-                                ]
-
-                                for pattern in date_patterns:
-                                    match = re.search(pattern, date_text.lower())
-                                    if match:
-                                        groups = match.groups()
-
-                                        if len(groups) == 3:  # day month year
-                                            # Check if this is English abbreviation format (Mar 6, 2026)
-                                            if any(
-                                                month_abbr in date_text.lower()
-                                                for month_abbr in [
-                                                    "jan",
-                                                    "feb",
-                                                    "mar",
-                                                    "apr",
-                                                    "may",
-                                                    "jun",
-                                                    "jul",
-                                                    "aug",
-                                                    "sep",
-                                                    "oct",
-                                                    "nov",
-                                                    "dec",
-                                                ]
-                                            ):
-                                                month_abbr, day, year = groups
-                                                english_months = {
-                                                    "jan": "01",
-                                                    "feb": "02",
-                                                    "mar": "03",
-                                                    "apr": "04",
-                                                    "may": "05",
-                                                    "jun": "06",
-                                                    "jul": "07",
-                                                    "aug": "08",
-                                                    "sep": "09",
-                                                    "oct": "10",
-                                                    "nov": "11",
-                                                    "dec": "12",
-                                                }
-
-                                                month_num = english_months.get(
-                                                    month_abbr.lower(), "01"
-                                                )
-                                                if len(year) == 2:
-                                                    year = f"20{year}"  # Convert 26 to 2026 format
-
-                                                publication_date = (
-                                                    f"{year}-{month_num}-{day.zfill(2)}"
-                                                )
-                                                logging.info(
-                                                    f"Extracted YouTube publication date: {publication_date}"
-                                                )
-                                                found_date = True
-                                                break
-                                            elif any(
-                                                month_name in date_text.lower()
-                                                for month_name in [
-                                                    "januari",
-                                                    "februari",
-                                                    "mars",
-                                                    "april",
-                                                    "maj",
-                                                    "juni",
-                                                    "juli",
-                                                    "augusti",
-                                                    "september",
-                                                    "oktober",
-                                                    "november",
-                                                    "december",
-                                                ]
-                                            ):
-                                                day, month_name, year = groups
-                                                swedish_months = {
-                                                    "januari": "01",
-                                                    "februari": "02",
-                                                    "mars": "03",
-                                                    "april": "04",
-                                                    "maj": "05",
-                                                    "juni": "06",
-                                                    "juli": "07",
-                                                    "augusti": "08",
-                                                    "september": "09",
-                                                    "oktober": "10",
-                                                    "november": "11",
-                                                    "december": "12",
-                                                }
-
-                                                month_num = swedish_months.get(
-                                                    month_name.lower(), "01"
-                                                )
-                                                if len(year) == 2:
-                                                    year = f"20{year}"  # Convert 24 to 2024 format
-
-                                                publication_date = (
-                                                    f"{year}-{month_num}-{day.zfill(2)}"
-                                                )
-                                                logging.info(
-                                                    f"Extracted YouTube publication date: {publication_date}"
-                                                )
-                                                found_date = True
-                                                break
-                                            else:  # YYYY-MM-DD format
-                                                year, month, day = groups
-                                                publication_date = (
-                                                    f"{year}-{month}-{day}"
-                                                )
-                                                logging.info(
-                                                    f"Extracted YouTube publication date: {publication_date}"
-                                                )
-                                                found_date = True
-                                                break
-                                if found_date:
-                                    break
-                        except Exception as e:
-                            logging.debug(f"Selector '{selector}' failed: {e}")
-                            continue
-
-                    # If still not found, try searching page content for date patterns
-                    if not found_date:
-                        logging.info("Searching page content for date patterns...")
-                        page_content = page.content()
-
-                        # Look for date patterns in page content
-                        content_patterns = [
-                            r'"publishDate":"(\d{4}-\d{2}-\d{2})"',  # JSON publishDate
-                            r'"uploadDate":"(\d{4}-\d{2}-\d{2})"',  # JSON uploadDate
-                            r"(\d{1,2})\s+(januari|februari|mars|april|maj|juni|juli|augusti|september|oktober|november|december)\s+(\d{4})",
-                        ]
-
-                        for pattern in content_patterns:
-                            matches = re.findall(pattern, page_content)
-                            if matches:
-                                for match in matches:
-                                    if isinstance(match, tuple):
-                                        day, month_name, year = match
-                                        swedish_months = {
-                                            "januari": "01",
-                                            "februari": "02",
-                                            "mars": "03",
-                                            "april": "04",
-                                            "maj": "05",
-                                            "juni": "06",
-                                            "juli": "07",
-                                            "augusti": "08",
-                                            "september": "09",
-                                            "oktober": "10",
-                                            "november": "11",
-                                            "december": "12",
-                                        }
-                                        month_num = swedish_months.get(
-                                            month_name.lower(), "01"
-                                        )
-                                        publication_date = (
-                                            f"{year}-{month_num}-{day.zfill(2)}"
-                                        )
-                                    else:
-                                        publication_date = match
-                                    logging.info(
-                                        f"Found date in page content: {publication_date}"
-                                    )
-                                    found_date = True
-                                    break
-                                if found_date:
-                                    break
-
-                except Exception as e:
-                    logging.warning(f"Failed to extract publication date: {e}")
-
-                # If still not found, try to extract from URL or handle
-                if not channel_name:
-                    try:
-                        # Try to get channel handle from page URL or metadata
-                        channel_url_elem = page.locator(
-                            "ytd-channel-name a.yt-simple-endpoint"
+                channel_elem = page.locator(selector)
+                if channel_elem.count() > 0:
+                    channel_text = channel_elem.first.text_content().strip()
+                    if channel_text and channel_text != "Unknown":
+                        logging.info(
+                            f"Extracted channel name '{channel_text}' for video {v_id}"
                         )
-                        if channel_url_elem.count() > 0:
-                            href = channel_url_elem.first.get_attribute("href")
-                            if href and "@" in href:
-                                # Extract handle from URL like /@channelname
-                                handle = href.split("@")[-1].split("/")[0]
-                                if handle:
-                                    channel_name = f"@{handle}"
-                                    logging.info(
-                                        f"Extracted channel handle '{channel_name}' from URL for video {v_id}"
-                                    )
-                    except Exception:
-                        pass
+                        return channel_text
+            except Exception:
+                continue
 
+        # Fallback: try to get channel handle from URL
+        channel_url_elem = page.locator("ytd-channel-name a.yt-simple-endpoint")
+        if channel_url_elem.count() > 0:
+            href = channel_url_elem.first.get_attribute("href")
+            if href and "@" in href:
+                handle = href.split("@")[-1].split("/")[0]
+                if handle:
+                    channel_name = f"@{handle}"
+                    logging.info(
+                        f"Extracted channel handle '{channel_name}' from URL for video {v_id}"
+                    )
+                    return channel_name
+    except Exception as e:
+        logging.warning(f"Failed to extract channel name for {v_id}: {e}")
+
+    logging.warning(
+        f"Could not extract channel name for video {v_id}, will use fallback"
+    )
+    return None
+
+
+def _extract_publication_date(page):
+    """Extract publication date from page metadata"""
+    try:
+        date_selectors = [
+            "#description-inner yt-formatted-string.ytd-video-secondary-info-renderer",
+            "#info-strings yt-formatted-string.ytd-video-secondary-info-renderer",
+            ".ytd-video-secondary-info-renderer yt-formatted-string",
+            "#info-text",
+            ".ytd-video-primary-info-renderer .ytd-simple-timestamp-renderer",
+            "ytd-video-view-model-renderer .ytd-simple-timestamp-renderer",
+            "ytd-metadata-row-renderer .ytd-simple-timestamp-renderer",
+            ".ytd-simple-timestamp-renderer",
+            "#meta-contents ytd-video-secondary-info-renderer yt-formatted-string",
+            "span.ytd-video-secondary-info-renderer",
+        ]
+
+        for selector in date_selectors:
+            try:
+                date_elem = page.locator(selector)
+                if date_elem.count() > 0:
+                    date_text = date_elem.first.text_content().strip()
+                    parsed_date = _parse_date_from_text(date_text)
+                    if parsed_date:
+                        logging.info(f"Extracted YouTube publication date: {parsed_date}")
+                        return parsed_date
             except Exception as e:
-                logging.warning(f"Failed to extract channel name for {v_id}: {e}")
+                logging.debug(f"Selector '{selector}' failed: {e}")
+                continue
 
-            # Log if channel extraction failed
-            if not channel_name:
-                logging.warning(
-                    f"Could not extract channel name for video {v_id}, will use fallback"
-                )
+        # If still not found, try searching page content
+        logging.info("Searching page content for date patterns...")
+        page_content = page.content()
+        parsed_date = _search_dates_in_page_content(page_content)
+        if parsed_date:
+            logging.info(f"Found date in page content: {parsed_date}")
+            return parsed_date
 
-            # Set extracted_channel_name for return
-            extracted_channel_name = channel_name
+    except Exception as e:
+        logging.warning(f"Failed to extract publication date: {e}")
 
-            # Fetch video stats
-            video_stats = get_video_stats(v_id)
+    return UNKNOWN_DATE
 
-            # Early detection for members-only/private content
-            # Check for indicators: zero engagement + title available suggests restricted content
-            if (
-                video_stats["likes"] == 0
-                and video_stats["dislikes"] == 0
-                and video_stats["like_ratio"] < 0.001
-                and title != "Unknown"
-            ):
-                logging.warning(
-                    f"Early detection: Video {v_id} shows signs of members-only/private content (zero engagement but title available)"
-                )
-                return (
-                    "MEMBERS_ONLY",
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    UNKNOWN_DATE,
-                    None,
-                    None,
-                    None,
-                )
 
-            ui_count = 0
-            # [Count extraction logic preserved for brevity]
-            count_locators = [
-                ("#count .yt-core-attributed-string", "yt-core-attributed-string"),
-                ("h2#count yt-formatted-string", "yt-formatted-string"),
-                ("yt-formatted-string.count-text", "count-text"),
-            ]
-            for selector, desc in count_locators:
-                try:
-                    loc = page.locator(selector)
-                    loc.wait_for(state="visible", timeout=10000)
-                    digits = "".join(
-                        filter(str.isdigit, loc.first.text_content().strip())
-                    )
-                    if digits:
-                        ui_count = int(digits)
-                        break
-                except TimeoutError:
-                    pass
+def _extract_comment_count(page):
+    """Extract UI comment count from page"""
+    ui_count = 0
+    count_locators = [
+        ("#count .yt-core-attributed-string", "yt-core-attributed-string"),
+        ("h2#count yt-formatted-string", "yt-formatted-string"),
+        ("yt-formatted-string.count-text", "count-text"),
+    ]
+    
+    for selector, desc in count_locators:
+        try:
+            loc = page.locator(selector)
+            loc.wait_for(state="visible", timeout=10000)
+            digits = "".join(
+                filter(str.isdigit, loc.first.text_content().strip())
+            )
+            if digits:
+                ui_count = int(digits)
+                break
+        except TimeoutError:
+            pass
+    
+    return ui_count
 
-            # LANGUAGE-INDEPENDENT SORT TO "NEWEST FIRST"
-            if deep_scrape:
-                try:
-                    page.evaluate("""() => {
-                        const btn = document.querySelector('ytd-comments-header-renderer #sort-menu');
-                        if (btn) btn.click();
-                    }""")
-                    page.wait_for_timeout(1000)
 
-                    page.evaluate("""() => {
-                        const items = document.querySelectorAll('ytd-menu-service-item-renderer');
-                        if (items.length > 1) items[1].click();
-                    }""")
-                    page.wait_for_timeout(3000)
-                except Exception as e:
-                    logging.warning(
-                        f"Failed to sort comments: {e}. Proceeding with default sort."
-                    )
+def _setup_youtube_browser():
+    """Setup Playwright browser and context for YouTube"""
+    user_agent = random.choice(USER_AGENTS)
+    p = sync_playwright().start()
+    browser = p.chromium.launch(headless=True)
+    context = browser.new_context(
+        user_agent=user_agent,
+        viewport={"width": 1920, "height": 1080},
+        locale="en-US",
+        extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
+    )
+    page = context.new_page()
+    return browser, page
 
-            comments = {}
-            if deep_scrape:
-                logging.info(
-                    f"Starting scrape for '{title}'. UI reports ~{ui_count} comments."
-                )
 
-                # Phase 1: Load all top-level threads by scrolling
-                last_thread_count = 0
-                no_change = 0
-                while True:
-                    thread_nodes = page.locator("ytd-comment-thread-renderer")
-                    current_thread = thread_nodes.count()
-                    if current_thread == last_thread_count:
-                        no_change += 1
-                        if no_change >= 3:
-                            break
-                    else:
-                        no_change = 0
-                        last_thread_count = current_thread
-                    page.evaluate(
-                        "document.scrollingElement.scrollTop = document.scrollingElement.scrollHeight"
-                    )
-                    page.wait_for_timeout(5000)
+def _sort_comments_newest(page):
+    """Sort comments to newest first"""
+    try:
+        page.evaluate("""() => {
+            const btn = document.querySelector('ytd-comments-header-renderer #sort-menu');
+            if (btn) btn.click();
+        }""")
+        page.wait_for_timeout(1000)
 
-                # Phase 2: Expand replies using JavaScript to bypass actionability checks
-                max_iterations = 3  # Run a few times in case clicking reveals nested "show more" buttons
+        page.evaluate("""() => {
+            const items = document.querySelectorAll('ytd-menu-service-item-renderer');
+            if (items.length > 1) items[1].click();
+        }""")
+        page.wait_for_timeout(3000)
+    except Exception as e:
+        logging.warning(
+            f"Failed to sort comments: {e}. Proceeding with default sort."
+        )
 
-                for i in range(max_iterations):
-                    try:
-                        # Inject JS to find all reply buttons and click them directly in the DOM
-                        clicks_dispatched = page.evaluate("""() => {
-                            const buttons = Array.from(document.querySelectorAll('ytd-button-renderer#more-replies button'));
-                            let count = 0;
-                            for (let btn of buttons) {
-                                // Basic check to ensure the button is actually rendered in the DOM
-                                if (btn.offsetParent !== null) { 
-                                    btn.click();
-                                    count++;
-                                }
-                            }
-                            return count;
-                        }""")
 
-                        if clicks_dispatched == 0:
-                            break
+def _scroll_to_load_comments(page):
+    """Scroll to load all top-level comment threads"""
+    last_thread_count = 0
+    no_change = 0
+    
+    while True:
+        thread_nodes = page.locator("ytd-comment-thread-renderer")
+        current_thread = thread_nodes.count()
+        if current_thread == last_thread_count:
+            no_change += 1
+            if no_change >= 3:
+                break
+        else:
+            no_change = 0
+            last_thread_count = current_thread
+        page.evaluate(SCROLL_SCRIPT)
+        page.wait_for_timeout(5000)
 
-                        # Wait a moment for the requested replies to render in the DOM
-                        page.wait_for_timeout(4000)
 
-                        # Scroll down to ensure we trigger any lazy-loaded elements
-                        page.evaluate(
-                            "document.scrollingElement.scrollTop = document.scrollingElement.scrollHeight"
-                        )
-                        page.wait_for_timeout(2000)
+def _expand_comment_replies(page):
+    """Expand all comment replies using JavaScript"""
+    max_iterations = 3
+    
+    for i in range(max_iterations):
+        try:
+            clicks_dispatched = page.evaluate("""() => {
+                const buttons = Array.from(document.querySelectorAll('ytd-button-renderer#more-replies button'));
+                let count = 0;
+                for (let btn of buttons) {
+                    if (btn.offsetParent !== null) { 
+                        btn.click();
+                        count++;
+                    }
+                }
+                return count;
+            }""")
 
-                    except Exception as e:
-                        logging.warning(
-                            f"Iteration {i + 1} JS click failed: {str(e).splitlines()[0]}"
-                        )
-                        break
+            if clicks_dispatched == 0:
+                break
 
-                logging.info(
-                    f"Extracted {len(comments)} unique comments after deduplication."
-                )
-                if ui_count == 0 and len(comments) > 0:
-                    ui_count = len(comments)
-
-                # Get transcript and analysis
-                transcript_text, ai_analysis, ai_model, transcription_model = (
-                    get_transcript_and_analysis(
-                        v_id, title, channel_name, publication_date
-                    )
-                )
-
-                # Also run comprehensive analysis
-                # comprehensive_analysis = analyze_video_comprehensive(v_id, title, comments, video_stats, transcript_text, video_to_channel)
-
-                # Return statement moved inside the main try block
-                return (
-                    title,
-                    channel_name,
-                    ui_count,
-                    comments,
-                    video_stats,
-                    transcript_text,
-                    ai_analysis,
-                    ai_model,
-                    publication_date,
-                    extracted_channel_name,
-                    transcription_model,
-                )
+            page.wait_for_timeout(4000)
+            page.evaluate(SCROLL_SCRIPT)
+            page.wait_for_timeout(2000)
 
         except Exception as e:
-            logging.error(f"Scrape failed for {v_id}: {e}")
-            if "not enough values to unpack" in str(e):
-                logging.error(
-                    "Unpacking error details: Expected 4 values (transcript_text, ai_analysis, ai_model, transcription_model) but got fewer"
-                )
-                logging.error(
-                    "This usually means get_transcript_and_analysis() returned wrong number of values"
-                )
-            return (
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                UNKNOWN_DATE,
-                None,
-                None,
-                None,
+            logging.warning(
+                f"Iteration {i + 1} JS click failed: {str(e).splitlines()[0]}"
             )
-        finally:
-            browser.close()
+            break
+
+
+def _is_restricted_content(video_stats, title):
+    """Check if video shows signs of being restricted content"""
+    return (
+        video_stats["likes"] == 0
+        and video_stats["dislikes"] == 0
+        and video_stats["like_ratio"] < 0.001
+        and title != "Unknown"
+    )
+
+
+def _handle_scrape_error(e, v_id):
+    """Handle scraping errors and return appropriate response"""
+    logging.error(f"Scrape failed for {v_id}: {e}")
+    if "not enough values to unpack" in str(e):
+        logging.error(
+            "Unpacking error details: Expected 4 values (transcript_text, ai_analysis, ai_model, transcription_model) but got fewer"
+        )
+        logging.error(
+            "This usually means get_transcript_and_analysis() returned wrong number of values"
+        )
+    return (
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        UNKNOWN_DATE,
+        None,
+        None,
+        None,
+    )
+
+
+def _scrape_video_metadata(page, v_id):
+    """Extract all video metadata from page"""
+    title = _extract_video_title(page)
+    channel_name = _extract_channel_name(page, v_id)
+    publication_date = _extract_publication_date(page)
+    ui_count = _extract_comment_count(page)
+    
+    return {
+        "title": title,
+        "channel_name": channel_name,
+        "publication_date": publication_date,
+        "ui_count": ui_count,
+        "extracted_channel_name": channel_name
+    }
+
+
+def _perform_deep_scrape(page, v_id, title, channel_name, publication_date, deep_scrape):
+    """Perform deep scraping of comments and transcript"""
+    ui_count = _extract_comment_count(page)
+    comments = {}
+    
+    if deep_scrape:
+        logging.info(
+            f"Starting scrape for '{title}'. UI reports ~{ui_count} comments."
+        )
+
+        # Sort comments to newest first
+        _sort_comments_newest(page)
+
+        # Phase 1: Load all top-level threads by scrolling
+        _scroll_to_load_comments(page)
+
+        # Phase 2: Expand replies
+        _expand_comment_replies(page)
+
+        logging.info(
+            f"Extracted {len(comments)} unique comments after deduplication."
+        )
+        if ui_count == 0 and len(comments) > 0:
+            ui_count = len(comments)
+
+        # Get transcript and analysis
+        transcript_text, ai_analysis, ai_model, transcription_model = (
+            get_transcript_and_analysis(
+                v_id, title, channel_name, publication_date
+            )
+        )
+
+        return (
+            title,
+            channel_name,
+            ui_count,
+            comments,
+            get_video_stats(v_id),
+            transcript_text,
+            ai_analysis,
+            ai_model,
+            publication_date,
+            channel_name,
+            transcription_model,
+        )
+    
+    # Basic response for non-deep scrape
+    return (
+        title,
+        channel_name,
+        ui_count,
+        {},
+        get_video_stats(v_id),
+        None,
+        None,
+        None,
+        publication_date,
+        channel_name,
+        None,
+    )
+
+
+def get_yt_data(v_id, deep_scrape=False):
+    """Extract YouTube video data with reduced cognitive complexity"""
+    logging.info("=== FUNCTION START: get_yt_data ===")
+    
+    browser, page = _setup_youtube_browser()
+    
+    try:
+        # Navigate to video page
+        page.goto(f"https://www.youtube.com/watch?v={v_id}", timeout=60000)
+        page.wait_for_load_state("networkidle")
+        page.evaluate("window.scrollBy(0, 800)")
+
+        # Check video accessibility
+        page_content = page.content()
+        page_title = page.title()
+        
+        if _is_private_video(page_title):
+            logging.warning(f"Private video detected for {v_id}: {page_title}")
+            return _get_members_only_response()
+            
+        if _is_members_only_content(page_content):
+            logging.warning(f"Members-only content detected for {v_id}")
+            return _get_members_only_response()
+
+        # Wait for comments section
+        try:
+            page.wait_for_selector("ytd-comments#comments", state="attached", timeout=15000)
+            page.wait_for_timeout(3000)
+        except TimeoutError:
+            logging.warning("Comments section did not attach in time. Video might have comments disabled.")
+            return _get_basic_response(None, None, None, get_video_stats(v_id))
+
+        # Extract video metadata
+        metadata = _scrape_video_metadata(page, v_id)
+        
+        # Get video stats for early detection
+        video_stats = get_video_stats(v_id)
+        
+        # Early detection for restricted content
+        if _is_restricted_content(video_stats, metadata["title"]):
+            logging.warning(f"Early detection: Video {v_id} shows signs of members-only/private content")
+            return _get_members_only_response()
+
+        # Perform deep scrape or basic extraction
+        return _perform_deep_scrape(
+            page, v_id, metadata["title"], metadata["channel_name"], 
+            metadata["publication_date"], deep_scrape
+        )
+        
+    except Exception as e:
+        return _handle_scrape_error(e, v_id)
+    finally:
+        browser.close()
+
+
+def _get_basic_response(title, channel_name, ui_count, video_stats):
+    """Return basic response tuple for non-deep scrape"""
+    return (
+        title,
+        channel_name,
+        ui_count,
+        {},
+        video_stats or {"likes": 0, "dislikes": 0, "views": 0, "like_ratio": 0},
+        None,
+        None,
+        None,
+        UNKNOWN_DATE,
+        channel_name,
+        None,
+    )
 
 
 def transcribe_with_assemblyai(audio_filepath, v_id):
