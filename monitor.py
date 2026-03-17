@@ -729,6 +729,44 @@ def _manage_queue_depth(queue_state, fetch_depth):
     return queue_state
 
 
+def _is_valid_channel_data(channel_data):
+    """Check if channel data is valid dictionary with videos"""
+    logging.info("=== FUNCTION START: _is_valid_channel_data ===")
+    return isinstance(channel_data, dict) and "videos" in channel_data
+
+def _is_valid_video_entry(video):
+    """Check if video entry is valid dictionary with video_id"""
+    logging.info("=== FUNCTION START: _is_valid_video_entry ===")
+    return isinstance(video, dict) and "video_id" in video
+
+def _is_video_completed(video):
+    """Check if video is marked as sent to Discord"""
+    logging.info("=== FUNCTION START: _is_video_completed ===")
+    return video.get("sentToDiscord")
+
+def _extract_completed_video_id(video):
+    """Extract video ID if video is completed"""
+    logging.info("=== FUNCTION START: _extract_completed_video_id ===")
+    if _is_valid_video_entry(video) and _is_video_completed(video):
+        return video["video_id"]
+    return None
+
+def _process_channel_videos(channel_data):
+    """Process videos from a single channel and return completed IDs"""
+    logging.info("=== FUNCTION START: _process_channel_videos ===")
+    completed_ids = set()
+    
+    if not _is_valid_channel_data(channel_data):
+        return completed_ids
+    
+    for video in channel_data["videos"]:
+        video_id = _extract_completed_video_id(video)
+        if video_id:
+            completed_ids.add(video_id)
+    
+    return completed_ids
+
+
 def _get_completed_videos():
     """Extract completed video IDs from analysis stats"""
     logging.info("=== FUNCTION START: _get_completed_videos ===")
@@ -736,11 +774,8 @@ def _get_completed_videos():
     completed_videos = set()
     
     for channel_data in analysis_stats.values():
-        if isinstance(channel_data, dict) and "videos" in channel_data:
-            for video in channel_data["videos"]:
-                if isinstance(video, dict) and "video_id" in video:
-                    if video.get("sentToDiscord"):
-                        completed_videos.add(video["video_id"])
+        channel_completed = _process_channel_videos(channel_data)
+        completed_videos.update(channel_completed)
     
     return completed_videos
 
