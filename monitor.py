@@ -717,37 +717,196 @@ def get_video_stats(v_id):
     return {"likes": 0, "dislikes": 0, "views": 0, "like_ratio": 0}
 
 
+def _manage_queue_depth(queue_state, fetch_depth):
+    """Manage queue depth increment and logging"""
+    logging.info("=== FUNCTION START: _manage_queue_depth ===")
+    queue_state["fetch_depth"] = min(
+        queue_state["fetch_depth"] + 1, min(fetch_depth, 10)
+    )
+    logging.info(
+        f"DATA CHANGE: Incremented fetch_depth to {queue_state['fetch_depth']} (configured max: {fetch_depth})"
+    )
+    return queue_state
+
+
+def _get_completed_videos():
+    """Extract completed video IDs from analysis stats"""
+    logging.info("=== FUNCTION START: _get_completed_videos ===")
+    analysis_stats = load_analysis_stats()
+    completed_videos = set()
+    
+    for channel_data in analysis_stats.values():
+        if isinstance(channel_data, dict) and "videos" in channel_data:
+            for video in channel_data["videos"]:
+                if isinstance(video, dict) and "video_id" in video:
+                    if video.get("sentToDiscord"):
+                        completed_videos.add(video["video_id"])
+    
+    return completed_videos
+
+
+def _setup_browser_context():
+    """Initialize Playwright browser and context"""
+    logging.info("=== FUNCTION START: _setup_browser_context ===")
+    user_agent = random.choice(USER_AGENTS)
+    
+    browser = None
+    context = None
+    page = None
+    
+    return user_agent, browser, context, page
+
+
+def _handle_youtube_consent(page):
+    """Handle YouTube consent page if present"""
+    logging.info("=== FUNCTION START: _handle_youtube_consent ===")
+    if "Before you continue to YouTube" in page.title():
+        try:
+            accept_button = (
+                page.locator("button")
+                .filter(has_text="Accept all")
+                .first
+            )
+            if accept_button.count() > 0:
+                accept_button.click()
+                page.wait_for_timeout(2000)
+                page.wait_for_load_state("networkidle")
+        except Exception as e:
+            logging.error("Failed to accept consent: " + str(e))
+
+
+def _extract_video_ids(page, max_videos, completed_videos):
+    """Extract video IDs from page elements"""
+    logging.info("=== FUNCTION START: _extract_video_ids ===")
+    videos_found = 0
+    latest_videos = []
+    video_to_channel = {}
+    
+    video_locators = [
+        'ytd-rich-item-renderer a[href*="/watch?v="]',
+        'ytd-rich-grid-media a[href*="/watch?v="]',
+    ]
+    
+    for locator_selector in video_locators:
+        video_elements = page.locator(locator_selector)
+        for i in range(min(max_videos, video_elements.count())):
+            if videos_found >= max_videos:
+                break
+            
+            href = video_elements.nth(i).get_attribute("href")
+            if href and "v=" in href:
+                v_id = href.split("v=")[1].split("&")[0]
+                
+                # Check if video is already completed
+                if v_id not in completed_videos:
+                    latest_videos.append(v_id)
+                    video_to_channel[v_id] = v_id  # Temporary mapping
+                    videos_found += 1
+    
+    return latest_videos, video_to_channel
+
+
+def _fetch_channel_videos(page, channel, max_videos, completed_videos):
+    """Fetch videos from a single channel"""
+    logging.info("=== FUNCTION START: _fetch_channel_videos ===")
+    try:
+        url = f"https://www.youtube.com/@{channel}/videos"
+        page.goto(url, timeout=60000)
+        page.wait_for_load_state("networkidle")
+        
+        # Handle consent page
+        _handle_youtube_consent(page)
+        
+        # Scroll to load videos
+        page.evaluate("window.scrollBy(0, 1000)")
+        page.wait_for_timeout(5000)
+        
+        # Extract video IDs
+        return _extract_video_ids(page, max_videos, completed_videos)
+        
+    except Exception as e:
+        logging.error(f"Failed to fetch videos for {channel}: {e}")
+        return [], {}
+
+
+def _filter_new_videos(all_videos, completed_videos):
+    """Filter out already completed videos"""
+    logging.info("=== FUNCTION START: _filter_new_videos ===")
+    return [v_id for v_id in all_videos if v_id not in completed_videos]
+
+
+def _find_channel_for_video(video_id):
+    """Find channel name for a specific video ID"""
+    logging.info("=== FUNCTION START: _find_channel_for_video ===")
+    analysis_stats = load_analysis_stats()
+    
+    for channel_name, channel_data in analysis_stats.items():
+        if isinstance(channel_data, dict) and "videos" in channel_data:
+            for video in channel_data["videos"]:
+                if (
+                    isinstance(video, dict)
+                    and video.get("video_id") == video_id
+                ):
+                    return channel_name
+    
+    return None
+
+
+def _should_refill_queue(queue_state):
+    """Check if queue needs refilling"""
+    logging.info("=== FUNCTION START: _should_refill_queue ===")
+    return not queue_state["pending_queue"]
+
+
+def _get_next_video_from_queue(queue_state):
+    """Get next video from queue and update state"""
+    logging.info("=== FUNCTION START: _get_next_video_from_queue ===")
+    next_video_id = pop_next_video(queue_state)
+    
+    if next_video_id:
+        return next_video_id, queue_state
+    else:
+        return None, queue_state
+
+
+def _return_video_result(next_video_id, queue_state, video_to_channel):
+    """Format and return video processing result"""
+    logging.info("=== FUNCTION START: _return_video_result ===")
+    if not next_video_id:
+        logging.info("No videos in queue to process")
+        return [], {}
+    
+    save_queue_state(queue_state)
+    
+    # Find channel mapping
+    if video_to_channel and next_video_id in video_to_channel:
+        channel_mapping = {next_video_id: video_to_channel[next_video_id]}
+    else:
+        channel_name = _find_channel_for_video(next_video_id)
+        channel_mapping = {next_video_id: channel_name} if channel_name else {}
+    
+    return [next_video_id], channel_mapping
+
+
 def fetch_latest_videos(channels, fetch_depth=6):
     """Fetch latest videos from channels using persistent queue system"""
     logging.info("=== FUNCTION START: fetch_latest_videos ===")
-    # Load queue state
     queue_state = load_queue_state()
 
-    # If pending queue is empty, increment depth and refill
-    if not queue_state["pending_queue"]:
-        # Increment fetch depth (use configured value, capped at 10 as requested, max 30)
-        queue_state["fetch_depth"] = min(
-            queue_state["fetch_depth"] + 1, min(fetch_depth, 10)
-        )
-        logging.info(
-            f"DATA CHANGE: Incremented fetch_depth to {queue_state['fetch_depth']} (configured max: {fetch_depth})"
-        )
-
-        # Load existing analyzed videos for duplicate checking
-        analysis_stats = load_analysis_stats()
-        completed_videos = set()
-        for channel_data in analysis_stats.values():
-            if isinstance(channel_data, dict) and "videos" in channel_data:
-                for video in channel_data["videos"]:
-                    if isinstance(video, dict) and "video_id" in video:
-                        if video.get("sentToDiscord"):
-                            completed_videos.add(video["video_id"])
-
-        # Fetch latest videos from channels
+    # Refill queue if empty
+    if _should_refill_queue(queue_state):
+        # Manage queue depth
+        queue_state = _manage_queue_depth(queue_state, fetch_depth)
+        
+        # Get completed videos for filtering
+        completed_videos = _get_completed_videos()
+        
+        # Fetch videos from channels
         latest_videos = []
         video_to_channel = {}
-        user_agent = random.choice(USER_AGENTS)
-
+        
+        user_agent, _, _, _ = _setup_browser_context()
+        
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             context = browser.new_context(
@@ -757,63 +916,17 @@ def fetch_latest_videos(channels, fetch_depth=6):
                 extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
             )
             page = context.new_page()
-
-            for channel in channels:
-                try:
-                    url = f"https://www.youtube.com/@{channel}/videos"
-                    page.goto(url, timeout=60000)
-                    page.wait_for_load_state("networkidle")
-
-                    # Handle YouTube consent page
-                    if "Before you continue to YouTube" in page.title():
-                        try:
-                            accept_button = (
-                                page.locator("button")
-                                .filter(has_text="Accept all")
-                                .first
-                            )
-                            if accept_button.count() > 0:
-                                accept_button.click()
-                                page.wait_for_timeout(2000)
-                                page.wait_for_load_state("networkidle")
-                        except Exception as e:
-                            logging.error("Failed to accept consent: " + str(e))
-
-                    # Scroll to load videos
-                    page.evaluate("window.scrollBy(0, 1000)")
-                    page.wait_for_timeout(5000)
-
-                    # Fetch multiple videos based on depth
-                    videos_found = 0
-                    max_videos = queue_state["fetch_depth"]
-
-                    # Try to get multiple videos
-                    video_locators = [
-                        'ytd-rich-item-renderer a[href*="/watch?v="]',
-                        'ytd-rich-grid-media a[href*="/watch?v="]',
-                    ]
-
-                    for locator_selector in video_locators:
-                        video_elements = page.locator(locator_selector)
-                        for i in range(min(max_videos, video_elements.count())):
-                            if videos_found >= max_videos:
-                                break
-
-                            href = video_elements.nth(i).get_attribute("href")
-                            if href and "v=" in href:
-                                v_id = href.split("v=")[1].split("&")[0]
-
-                                # Check if video is already completed
-                                if v_id not in completed_videos:
-                                    latest_videos.append(v_id)
-                                    video_to_channel[v_id] = channel
-                                    videos_found += 1
-
-                except Exception as e:
-                    logging.error(f"Failed to fetch videos for {channel}: {e}")
-
-            browser.close()
-
+            
+            try:
+                for channel in channels:
+                    channel_videos, channel_mapping = _fetch_channel_videos(
+                        page, channel, queue_state["fetch_depth"], completed_videos
+                    )
+                    latest_videos.extend(channel_videos)
+                    video_to_channel.update(channel_mapping)
+            finally:
+                browser.close()
+        
         # Add new videos to pending queue
         queue_state = add_to_pending_queue(queue_state, latest_videos)
         save_queue_state(queue_state)
@@ -821,29 +934,10 @@ def fetch_latest_videos(channels, fetch_depth=6):
             f"Queue state: {len(queue_state['pending_queue'])}, {len(queue_state['completed_ids'])} completed"
         )
 
-    # Get next video from queue (FIFO)
-    next_video_id = pop_next_video(queue_state)
-    if next_video_id:
-        save_queue_state(queue_state)
-        channel_mapping = {}
-        if "video_to_channel" in locals() and video_to_channel:
-            channel_mapping = {next_video_id: video_to_channel[next_video_id]}
-        else:
-            # Find channel from analysis stats
-            analysis_stats = load_analysis_stats()
-            for channel_name, channel_data in analysis_stats.items():
-                if isinstance(channel_data, dict) and "videos" in channel_data:
-                    for video in channel_data["videos"]:
-                        if (
-                            isinstance(video, dict)
-                            and video.get("video_id") == next_video_id
-                        ):
-                            channel_mapping[next_video_id] = channel_name
-                            break
-        return [next_video_id], channel_mapping
-    else:
-        logging.info("No videos in queue to process")
-        return [], {}
+    # Get next video from queue
+    next_video_id, updated_queue_state = _get_next_video_from_queue(queue_state)
+    
+    return _return_video_result(next_video_id, updated_queue_state, video_to_channel if 'video_to_channel' in locals() else {})
 
 
 def is_video_completed(video):
