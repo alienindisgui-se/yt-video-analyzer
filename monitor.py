@@ -2041,6 +2041,465 @@ def transcribe_with_gemini_audio(v_id):
     return None
 
 
+def _check_ffmpeg_availability():
+    """Check for FFmpeg availability in expected locations"""
+    ffmpeg_available = False
+    ffmpeg_dir = None
+    
+    # Define possible FFmpeg locations in priority order
+    current_dir = os.getcwd()
+    ffmpeg_locations = [
+        current_dir,
+        os.path.join(current_dir, "ffmpeg_temp", "ffmpeg-8.0.1-essentials_build", "bin"),
+    ]
+    
+    for location in ffmpeg_locations:
+        local_ffmpeg = os.path.join(location, "ffmpeg.exe")
+        local_ffprobe = os.path.join(location, "ffprobe.exe")
+        
+        ffmpeg_exists = os.path.exists(local_ffmpeg)
+        ffprobe_exists = os.path.exists(local_ffprobe)
+        
+        if ffmpeg_exists and ffprobe_exists:
+            ffmpeg_available = True
+            ffmpeg_dir = location
+            break
+    
+    if not ffmpeg_available:
+        logging.warning("FFmpeg files not found in any expected locations")
+        logging.info("To fix this issue, you can:")
+        logging.info("1. Download FFmpeg from https://ffmpeg.org/download.html")
+        logging.info("2. Extract ffmpeg.exe and ffprobe.exe to project root directory")
+        logging.info("3. Or ensure they are available in your system PATH")
+    
+    return ffmpeg_dir, ffmpeg_available
+
+
+def _get_compression_settings(compression_level):
+    """Get compression settings based on compression level"""
+    base_settings = {
+        "postprocessors": [
+            {
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": "m4a",
+            }
+        ],
+        "postprocessor_args": [
+            "-ar", "16000",  # 16kHz sample rate (optimal for Whisper)
+            "-ac", "1",  # Mono audio (halves file size)
+            "-c:a", "aac",  # Explicit AAC codec for better compression
+        ],
+    }
+    
+    if compression_level == "standard":
+        base_settings["postprocessor_args"].extend(["-b:a", "16k"])
+        base_settings["postprocessors"][0]["preferredquality"] = "16"
+    elif compression_level == "balanced":
+        base_settings["postprocessor_args"].extend(["-b:a", "8k", "-compression_level", "7"])
+        base_settings["postprocessors"][0]["preferredquality"] = "8"
+    elif compression_level == "ultra_aggressive":
+        base_settings["postprocessor_args"].extend(["-b:a", "4k", "-compression_level", "10"])
+        # Remove preferredquality for ultra_aggressive to use default
+    
+    return base_settings
+
+
+def _get_ffmpeg_download_options(ffmpeg_available, ffmpeg_dir):
+    """Return appropriate download options based on FFmpeg availability"""
+    if ffmpeg_available:
+        compression_settings = _get_compression_settings("standard")
+        return {
+            "format": WORST_AUDIO_FORMAT,
+            "outtmpl": None,  # Will be set by caller
+            "quiet": True,
+            "no_warnings": True,
+            "extract_audio": True,
+            "keepvideo": False,
+            "nopart": True,
+            "noprogress": True,
+            "ffmpeg_location": ffmpeg_dir,
+            "postprocessors": compression_settings["postprocessors"],
+            "postprocessor_args": compression_settings["postprocessor_args"],
+        }
+    else:
+        # Fallback to basic extraction without compression
+        return {
+            "format": "bestaudio/best",
+            "outtmpl": None,  # Will be set by caller
+            "quiet": True,
+            "no_warnings": True,
+            "extract_audio": True,
+            "keepvideo": False,
+            "nopart": True,
+            "noprogress": True,
+        }
+
+
+def _setup_temp_audio_file():
+    """Create secure temporary file for audio download"""
+    with tempfile.NamedTemporaryFile(suffix=".m4a", delete=False) as temp_file:
+        return temp_file.name
+
+
+def _download_audio_file(v_id, audio_filepath, ydl_opts):
+    """Download audio file using youtube-dl options"""
+    logging.info(f"Downloading audio for {v_id}...")
+    ydl_opts["outtmpl"] = audio_filepath  # Set output template
+    
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([f"https://www.youtube.com/watch?v={v_id}"])
+
+
+def _validate_and_fix_audio_path(audio_filepath):
+    """Fix audio file path if yt-dlp changed extension"""
+    if not os.path.exists(audio_filepath):
+        possible_files = [
+            f for f in os.listdir(os.path.dirname(audio_filepath))
+            if f.startswith(os.path.basename(audio_filepath))
+        ]
+        if possible_files:
+            return os.path.join(os.path.dirname(audio_filepath), possible_files[0])
+    return audio_filepath
+
+
+def _analyze_file_size(audio_filepath, v_id):
+    """Analyze and log file size information"""
+    file_size = os.path.getsize(audio_filepath)
+    size_mb = file_size / (1024 * 1024)
+    size_percentage = (file_size / (25 * 1024 * 1024)) * 100
+    
+    logging.info(f"=== AUDIO FILE ANALYSIS for {v_id} ===")
+    logging.info(f"File size: {file_size:,} bytes ({size_mb:.2f} MB)")
+    logging.info(f"Size utilization: {size_percentage:.1f}% of API limit")
+    
+    return file_size, size_mb
+
+
+def _cleanup_audio_file(audio_filepath, v_id):
+    """Clean up temporary audio file with error handling"""
+    if audio_filepath and os.path.exists(audio_filepath):
+        try:
+            os.remove(audio_filepath)
+            logging.info(f"Cleaned up temporary audio file for {v_id}")
+        except Exception as cleanup_e:
+            logging.warning(f"Failed to cleanup audio file: {cleanup_e}")
+
+
+def _try_standard_compression(v_id, audio_filepath, ffmpeg_dir):
+    """Try standard compression settings"""
+    logging.info("Attempting standard compression...")
+    compression_settings = _get_compression_settings("standard")
+    ydl_opts = _get_ffmpeg_download_options(True, ffmpeg_dir)
+    ydl_opts.update({
+        "outtmpl": audio_filepath,
+        "postprocessors": compression_settings["postprocessors"],
+        "postprocessor_args": compression_settings["postprocessor_args"],
+    })
+    
+    try:
+        _download_audio_file(v_id, audio_filepath, ydl_opts)
+        return True, "Standard compression successful"
+    except Exception as e:
+        logging.error(f"Standard compression failed: {e}")
+        return False, f"Standard compression failed: {e}"
+
+
+def _try_balanced_compression(v_id, audio_filepath, ffmpeg_dir):
+    """Try balanced compression settings"""
+    logging.info("Retrying with balanced compression (8kbps, moderate compression)...")
+    compression_settings = _get_compression_settings("balanced")
+    ydl_opts = _get_ffmpeg_download_options(True, ffmpeg_dir)
+    ydl_opts.update({
+        "outtmpl": audio_filepath,
+        "postprocessors": compression_settings["postprocessors"],
+        "postprocessor_args": compression_settings["postprocessor_args"],
+    })
+    
+    try:
+        _download_audio_file(v_id, audio_filepath, ydl_opts)
+        
+        # Check result
+        if os.path.exists(audio_filepath):
+            file_size = os.path.getsize(audio_filepath)
+            size_mb = file_size / (1024 * 1024)
+            logging.info(f"Balanced compression result: {file_size:,} bytes ({size_mb:.2f} MB)")
+            
+            if file_size <= (25 * 1024 * 1024):
+                logging.info("Balanced compression successful! Proceeding with transcription.")
+                return True, f"Balanced compression successful: {size_mb:.2f} MB"
+            else:
+                return False, f"Balanced compression still too large: {size_mb:.2f} MB"
+        else:
+            return False, "Balanced compression failed to produce file"
+    except Exception as e:
+        logging.error(f"Balanced compression failed: {e}")
+        return False, f"Balanced compression failed: {e}"
+
+
+def _try_ultra_aggressive_compression(v_id, audio_filepath, ffmpeg_dir):
+    """Try ultra-aggressive compression settings"""
+    logging.info("Retrying with ultra-aggressive compression (4kbps, max compression)...")
+    compression_settings = _get_compression_settings("ultra_aggressive")
+    ydl_opts = _get_ffmpeg_download_options(True, ffmpeg_dir)
+    ydl_opts.update({
+        "outtmpl": audio_filepath,
+        "postprocessors": compression_settings["postprocessors"],
+        "postprocessor_args": compression_settings["postprocessor_args"],
+    })
+    
+    try:
+        _download_audio_file(v_id, audio_filepath, ydl_opts)
+        
+        # Check result
+        if os.path.exists(audio_filepath):
+            file_size = os.path.getsize(audio_filepath)
+            size_mb = file_size / (1024 * 1024)
+            logging.info(f"Ultra-aggressive compression result: {file_size:,} bytes ({size_mb:.2f} MB)")
+            
+            if file_size <= (25 * 1024 * 1024):
+                logging.info("Ultra-aggressive compression successful! Proceeding with transcription.")
+                return True, f"Ultra-aggressive compression successful: {size_mb:.2f} MB"
+            else:
+                return False, f"Ultra-aggressive compression still too large: {size_mb:.2f} MB"
+        else:
+            return False, "Ultra-aggressive compression failed to produce file"
+    except Exception as e:
+        logging.error(f"Ultra-aggressive compression failed: {e}")
+        return False, f"Ultra-aggressive compression failed: {e}"
+
+
+def _handle_oversized_file(v_id, audio_filepath, ffmpeg_dir, ffmpeg_available):
+    """Handle cases where file size exceeds API limit"""
+    if not ffmpeg_available:
+        logging.error("FFmpeg not available - cannot compress oversized file")
+        return None, "TRANSCRIPTION_FAILED", None, None
+    
+    # Try balanced compression first
+    success, message = _try_balanced_compression(v_id, audio_filepath, ffmpeg_dir)
+    if success:
+        return _finalize_transcription_attempt(audio_filepath, v_id)
+    
+    # Try ultra-aggressive as final fallback
+    success, message = _try_ultra_aggressive_compression(v_id, audio_filepath, ffmpeg_dir)
+    if success:
+        return _finalize_transcription_attempt(audio_filepath, v_id)
+    
+    # All compression attempts failed
+    logging.error("All compression attempts failed. Skipping transcription.")
+    return None, "TRANSCRIPTION_FAILED", None, None
+
+
+def _finalize_transcription_attempt(audio_filepath, v_id):
+    """Final check and prepare for transcription after compression"""
+    file_size = os.path.getsize(audio_filepath)
+    size_mb = file_size / (1024 * 1024)
+    return file_size, size_mb
+
+
+def _try_groq_transcription(audio_filepath, v_id, file_size):
+    """Try Groq Whisper transcription service"""
+    try:
+        logging.info(f"Attempting Groq Whisper transcription for {v_id}...")
+        
+        # Log Groq input
+        logging.info("=== GROQ WHISPER API INPUT ===")
+        logging.info("Model: whisper-large-v3-turbo")
+        logging.info(f"File: {os.path.basename(audio_filepath)}")
+        logging.info(f"File size: {file_size:,} bytes ({file_size / (1024*1024):.2f} MB)")
+        logging.info("=== END GROQ WHISPER API INPUT ===")
+        
+        with open(audio_filepath, "rb") as audio_file:
+            transcription = model_manager.client.audio.transcriptions.create(
+                file=(audio_filepath, audio_file.read()),
+                model="whisper-large-v3-turbo",
+                response_format="json",
+                language="sv",
+                temperature=0.0,
+            )
+        
+        if transcription and transcription.text:
+            actual_model = (
+                transcription.model
+                if hasattr(transcription, "model")
+                else "whisper-large-v3-turbo"
+            )
+            logging.info(f"Groq Whisper transcription successful for {v_id} ({len(transcription.text)} characters)")
+            logging.info(f"Transcription service used: {actual_model}")
+            return transcription.text, actual_model
+        else:
+            logging.error(f"Groq Whisper returned empty transcription for {v_id}")
+            return None, None
+            
+    except Exception as e:
+        if "413" in str(e) or "too large" in str(e).lower():
+            logging.error(f"Audio file too large for Groq API (max 25MB). Skipping video {v_id} as transcription is required.")
+            return None, "TRANSCRIPTION_FAILED"
+        elif "429" in str(e) or "Too Many Requests" in str(e):
+            logging.warning(f"Groq API rate limit hit (429) for {v_id}. Trying fallback services...")
+            return None, "RATE_LIMITED"
+        else:
+            logging.error(f"Transcription API error for video {v_id}. Skipping as transcription is required.")
+            return None, "TRANSCRIPTION_FAILED"
+
+
+def _try_assemblyai_fallback(audio_filepath, v_id):
+    """Try AssemblyAI as first fallback service"""
+    assemblyai_result = transcribe_with_assemblyai(audio_filepath, v_id)
+    if assemblyai_result:
+        logging.info(f"Failover successful: AssemblyAI provided transcription for {v_id}")
+        return assemblyai_result, "assemblyai"
+    else:
+        logging.warning(f"AssemblyAI fallback failed for {v_id}. Trying final fallback...")
+        return None, None
+
+
+def _try_gemini_fallback(v_id):
+    """Try Gemini as final fallback service"""
+    gemini_result = transcribe_with_gemini_audio(v_id)
+    if gemini_result:
+        logging.info(f"Final fallback successful: Gemini 3.1 Flash Lite Preview provided transcription for {v_id}")
+        return gemini_result, "gemini"
+    else:
+        logging.error(f"All transcription services failed for {v_id}. No transcription available.")
+        return None, None
+
+
+def _handle_all_transcription_failed(v_id):
+    """Handle complete transcription failure"""
+    logging.error(f"All transcription services failed for {v_id}. No transcription available.")
+    return None, "TRANSCRIPTION_FAILED"
+
+
+def _attempt_transcription(audio_filepath, v_id, file_size):
+    """Attempt transcription with fallback services"""
+    # Check if Groq Whisper is available
+    if not is_groq_whisper_available():
+        logging.warning(f"Groq Whisper is rate limited for {v_id}. Skipping to fallback services...")
+        
+        # Try AssemblyAI as first fallback
+        full_text, transcription_model = _try_assemblyai_fallback(audio_filepath, v_id)
+        if full_text:
+            return full_text, transcription_model
+        
+        # Try Gemini as final fallback
+        full_text, transcription_model = _try_gemini_fallback(audio_filepath, v_id)
+        if full_text:
+            return full_text, transcription_model
+        
+        # All services failed
+        return _handle_all_transcription_failed(v_id)
+    
+    # Try Groq Whisper transcription
+    full_text, transcription_model = _try_groq_transcription(audio_filepath, v_id, file_size)
+    if transcription_model == "RATE_LIMITED":
+        # Try fallback services when rate limited
+        full_text, transcription_model = _try_assemblyai_fallback(audio_filepath, v_id)
+        if full_text:
+            return full_text, transcription_model
+        
+        full_text, transcription_model = _try_gemini_fallback(audio_filepath, v_id)
+        if full_text:
+            return full_text, transcription_model
+        
+        return _handle_all_transcription_failed(v_id)
+    
+    return full_text, transcription_model
+
+
+def _prepare_analysis_prompt(title, summarized_transcript):
+    """Prepare AI analysis prompt with transcript content"""
+    prompt = f"""Du är en klinisk medieanalytiker.
+            Leverera en rak och kompakt analys av videon "{title}".
+            Var objektiv men 'hård'.
+            **Instruktioner:**
+            
+            1. **Sammanfattning:** Max 2 meningar om den dominerande stämningen.
+            Nämn ENDAST like/dislike-förhållandet om likes understiger 90%, och väv då in det organiskt för att förklara diskrepans eller förstärka kritiken.
+            Om likes är 90% eller högre, ignorera siffran helt.
+            
+            **Juridisk bedömning:** Inled alltid med meningen 'Sannolikheten är [hög/låg] för förtal.'
+            Följ upp med max en mening som konkret motiverar bedömningen (t.ex. förekomst av anklagelser om brott, grova förolämpningar eller koordinerade drev).
+            
+            **KRITISKT - FÖLJ EXAKT:**
+            - ABSOLUT INGA think-blocks (```), resonemang eller tankprocesser
+            - VISA INTE DITT TÄNKANDE - ge bara slutgiltig analys
+            - Använd INGEN markdown-formatering eller specialtecken
+            - Fetmarkera ENDAST de inledande orden (**Sammanfattning:** och **Juridisk bedömning:**)
+            - Inga listor, inga rubriker, inga kursiveringar
+            - Ge svaret som REN TEXT utan några formateringselement
+            - BÖRJA DIREKT med analysen, ingen inlednin
+            
+            **Data:**
+            Transkription (AI-sammanfattning): {summarized_transcript}
+    """
+    return prompt.format(summarized_transcript=summarized_transcript)
+
+
+def _perform_ai_analysis(v_id, title, summarized_transcript):
+    """Perform AI analysis using Groq"""
+    try:
+        prompt = _prepare_analysis_prompt(title, summarized_transcript)
+        
+        # Log input for debugging
+        logging.info("=== AI ANALYSIS INPUT ===")
+        logging.info(f"Video ID: {v_id}")
+        logging.info(f"Title: {title}")
+        logging.info(f"Prompt length: {len(prompt)} characters")
+        logging.info("=== END AI ANALYSIS INPUT ===")
+        
+        # Call Groq API
+        response = model_manager.client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[
+                {"role": "system", "content": "Du är en klinisk medieanalytiker."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=4000,
+            temperature=0.0,
+        )
+        
+        if response and response.choices:
+            analysis = response.choices[0].message.content
+            logging.info(f"AI analysis successful for {v_id} ({len(analysis)} characters)")
+            return analysis
+        else:
+            logging.error(f"AI analysis returned empty response for {v_id}")
+            return None
+            
+    except Exception as e:
+        logging.error(f"AI analysis failed for {v_id}: {e}")
+        return None
+
+
+def _store_analysis_results(v_id, channel_name, title, publication_date, full_text, ai_analysis):
+    """Store analysis results in analysis stats"""
+    analysis_stats = load_analysis_stats()
+    
+    # Find or create video entry
+    video_entry = find_or_create_video(
+        analysis_stats, channel_name, v_id, title, publication_date
+    )
+    
+    # Add transcription analysis
+    add_analysis_to_video(
+        video_entry,
+        "raw_transcript",
+        _prepare_analysis_prompt(title, summarize_transcript(full_text, title)),
+        full_text if full_text else "No transcription available",
+        "llama-3.1-8b-instant",
+    )
+    
+    # Add AI analysis
+    if ai_analysis:
+        add_analysis_to_video(
+            video_entry,
+            "ai_analysis",
+            _prepare_analysis_prompt(title, summarize_transcript(full_text, title)),
+            ai_analysis,
+            "llama-3.1-8b-instant",
+        )
+
+
 def get_transcript_and_analysis(
     v_id, title, channel_name, publication_date=UNKNOWN_DATE
 ):
@@ -2057,477 +2516,46 @@ def get_transcript_and_analysis(
     audio_filepath = None
 
     try:
-        # Use secure temporary file
-        with tempfile.NamedTemporaryFile(suffix=".m4a", delete=False) as temp_file:
-            audio_filepath = temp_file.name
-
-        # Check for FFmpeg availability for compression
-        ffmpeg_available = False
-        ffmpeg_dir = None
-
-        # Define possible FFmpeg locations in priority order
-        current_dir = os.getcwd()
-        ffmpeg_locations = [
-            # 1. Project root directory (current check)
-            current_dir,
-            # 2. ffmpeg_temp directory where FFmpeg is actually located
-            os.path.join(
-                current_dir, "ffmpeg_temp", "ffmpeg-8.0.1-essentials_build", "bin"
-            ),
-        ]
-
-        for location in ffmpeg_locations:
-            local_ffmpeg = os.path.join(location, "ffmpeg.exe")
-            local_ffprobe = os.path.join(location, "ffprobe.exe")
-
-            ffmpeg_exists = os.path.exists(local_ffmpeg)
-            ffprobe_exists = os.path.exists(local_ffprobe)
-
-            if ffmpeg_exists and ffprobe_exists:
-                ffmpeg_available = True
-                ffmpeg_dir = location
-                # logging.info(f"FFmpeg detected successfully in {ffmpeg_dir}")
-                break
-            # else:
-            # logging.warning(f"FFmpeg files not found in {location}")
-
-        if not ffmpeg_available:
-            logging.warning("FFmpeg files not found in any expected locations")
-            logging.info("To fix this issue, you can:")
-            logging.info("1. Download FFmpeg from https://ffmpeg.org/download.html")
-            logging.info(
-                "2. Extract ffmpeg.exe and ffprobe.exe to the project root directory"
-            )
-            logging.info("3. Or ensure they are available in your system PATH")
-
-        if ffmpeg_available:
-            # Use FFmpeg with smart source selection and balanced compression
-            ydl_opts = {
-                "format": WORST_AUDIO_FORMAT,  # Start with lowest quality source to avoid huge files
-                "outtmpl": audio_filepath,
-                "quiet": True,
-                "no_warnings": True,
-                "extract_audio": True,
-                "keepvideo": False,
-                "nopart": True,
-                "noprogress": True,
-                "ffmpeg_location": ffmpeg_dir,  # Point to local FFmpeg
-                "postprocessors": [
-                    {
-                        "key": "FFmpegExtractAudio",
-                        "preferredcodec": "m4a",  # m4a codec for good quality at low bitrates
-                        "preferredquality": "16",  # Target 16kbps for balanced compression
-                    }
-                ],
-                "postprocessor_args": [
-                    "-ar",
-                    "16000",  # 16kHz sample rate (optimal for Whisper)
-                    "-ac",
-                    "1",  # Mono audio (halves file size)
-                    "-b:a",
-                    "16k",  # 16 kbps bitrate (balanced compression)
-                    "-c:a",
-                    "aac",  # Explicit AAC codec for better compression
-                ],
-            }
-            # logging.info(f"FFmpeg available - using aggressive compression to fit 25MB limit")
-        else:
-            # Fallback to basic extraction without compression
-            ydl_opts = {
-                "format": "bestaudio/best",
-                "outtmpl": audio_filepath,
-                "quiet": True,
-                "no_warnings": True,
-                "extract_audio": True,
-                "keepvideo": False,
-                "nopart": True,
-                "noprogress": True,
-            }
-            logging.warning(
-                "FFmpeg not available - using basic extraction (files may exceed 25MB limit)"
-            )
-
-        logging.info(f"Downloading audio for {v_id}...")
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([f"https://www.youtube.com/watch?v={v_id}"])
-
-        # Ensure yt-dlp didn't append an extra extension during post-processing
-        if not os.path.exists(audio_filepath):
-            possible_files = [
-                f
-                for f in os.listdir(os.path.dirname(audio_filepath))
-                if f.startswith(os.path.basename(audio_filepath))
-            ]
-            if possible_files:
-                audio_filepath = os.path.join(
-                    os.path.dirname(audio_filepath), possible_files[0]
-                )
-
-        # Enhanced file size analysis and pre-flight checks
-        file_size = os.path.getsize(audio_filepath)
-        size_mb = file_size / (1024 * 1024)
-        size_percentage = (file_size / GROQ_MAX_FILE_SIZE) * 100
-
-        logging.info(f"=== AUDIO FILE ANALYSIS for {v_id} ===")
-        logging.info(f"File size: {file_size:,} bytes ({size_mb:.2f} MB)")
-        logging.info(f"Size utilization: {size_percentage:.1f}% of API limit")
-
-        # Pre-flight size check
+        # Setup and download
+        audio_filepath = _setup_temp_audio_file()
+        ffmpeg_dir, ffmpeg_available = _check_ffmpeg_availability()
+        ydl_opts = _get_ffmpeg_download_options(ffmpeg_available, ffmpeg_dir)
+        
+        # Download and validate
+        _download_audio_file(v_id, audio_filepath, ydl_opts)
+        audio_filepath = _validate_and_fix_audio_path(audio_filepath)
+        file_size, size_mb = _analyze_file_size(audio_filepath, v_id)
+        
+        # Handle oversized files
         if file_size > GROQ_MAX_FILE_SIZE:
-            if ffmpeg_available:
-                logging.error(
-                    f"PRE-FLIGHT CHECK FAILED: File size ({size_mb:.2f} MB) exceeds Groq API limit (25 MB)"
-                )
-                logging.info("Attempting ultra-aggressive compression retry...")
-
-                # Clean up the oversized file
-                os.remove(audio_filepath)
-
-                # Balanced compression fallback
-                balanced_opts = {
-                    "format": WORST_AUDIO_FORMAT,  # Same low quality source
-                    "outtmpl": audio_filepath,
-                    "quiet": True,
-                    "no_warnings": True,
-                    "extract_audio": True,
-                    "keepvideo": False,
-                    "nopart": True,
-                    "noprogress": True,
-                    "ffmpeg_location": ffmpeg_dir,  # Point to local FFmpeg
-                    "postprocessors": [
-                        {
-                            "key": "FFmpegExtractAudio",
-                            "preferredcodec": "m4a",
-                            "preferredquality": "8",  # Target 8kbps for more compression
-                        }
-                    ],
-                    "postprocessor_args": [
-                        "-ar",
-                        "16000",  # 16kHz sample rate (maintain Whisper quality)
-                        "-ac",
-                        "1",  # Mono audio
-                        "-b:a",
-                        "8k",  # 8 kbps bitrate (more aggressive)
-                        "-c:a",
-                        "aac",  # AAC codec
-                        "-compression_level",
-                        "7",  # Moderate compression
-                    ],
-                }
-
-                logging.info(
-                    "Retrying with balanced compression (8kbps, moderate compression)..."
-                )
-                with yt_dlp.YoutubeDL(balanced_opts) as ydl:
-                    ydl.download([f"https://www.youtube.com/watch?v={v_id}"])
-
-                # Re-check file size after balanced compression
-                if os.path.exists(audio_filepath):
-                    balanced_file_size = os.path.getsize(audio_filepath)
-                    balanced_size_mb = balanced_file_size / (1024 * 1024)
-                    logging.info(
-                        f"Balanced compression result: {balanced_file_size:,} bytes ({balanced_size_mb:.2f} MB)"
-                    )
-
-                    if balanced_file_size <= GROQ_MAX_FILE_SIZE:
-                        logging.info(
-                            "Balanced compression successful! Proceeding with transcription."
-                        )
-                        file_size = balanced_file_size
-                        size_mb = balanced_size_mb
-                    else:
-                        logging.error(
-                            f"Balanced compression still too large ({balanced_size_mb:.2f} MB). Trying ultra-aggressive..."
-                        )
-
-                        # Clean up and try ultra-aggressive as final fallback
-                        os.remove(audio_filepath)
-
-                        # Ultra-aggressive compression settings (existing working solution)
-                        ultra_aggressive_opts = {
-                            "format": WORST_AUDIO_FORMAT,  # Lowest quality source
-                            "outtmpl": audio_filepath,
-                            "quiet": True,
-                            "no_warnings": True,
-                            "extract_audio": True,
-                            "keepvideo": False,
-                            "nopart": True,
-                            "noprogress": True,
-                            "ffmpeg_location": ffmpeg_dir,
-                            "postprocessors": [
-                                {
-                                    "key": "FFmpegExtractAudio",
-                                    "preferredcodec": "m4a",
-                                }
-                            ],
-                            "postprocessor_args": [
-                                "-ar",
-                                "16000",  # 16kHz sample rate (better for Whisper)
-                                "-ac",
-                                "1",  # Mono audio
-                                "-b:a",
-                                "4k",  # 4 kbps bitrate (extremely aggressive)
-                                "-c:a",
-                                "aac",  # AAC codec
-                                "-compression_level",
-                                "10",  # Maximum compression
-                            ],
-                        }
-
-                        logging.info(
-                            "Retrying with ultra-aggressive compression (4kbps, max compression)..."
-                        )
-                        with yt_dlp.YoutubeDL(ultra_aggressive_opts) as ydl:
-                            ydl.download([f"https://www.youtube.com/watch?v={v_id}"])
-
-                        # Final check
-                        if os.path.exists(audio_filepath):
-                            final_file_size = os.path.getsize(audio_filepath)
-                            final_size_mb = final_file_size / (1024 * 1024)
-                            logging.info(
-                                f"Ultra-aggressive compression result: {final_file_size:,} bytes ({final_size_mb:.2f} MB)"
-                            )
-
-                            if final_file_size <= GROQ_MAX_FILE_SIZE:
-                                logging.info(
-                                    "Ultra-aggressive compression successful! Proceeding with transcription."
-                                )
-                                file_size = final_file_size
-                                size_mb = final_size_mb
-                            else:
-                                logging.error(
-                                    f"Ultra-aggressive compression still too large ({final_size_mb:.2f} MB). Skipping transcription."
-                                )
-                                return None, "TRANSCRIPTION_FAILED", None, None
-                        else:
-                            logging.error(
-                                "Ultra-aggressive compression failed to produce file."
-                            )
-                            return None, "TRANSCRIPTION_FAILED", None, None
-                else:
-                    logging.error("Balanced compression failed to produce file.")
-                    return None, "TRANSCRIPTION_FAILED", None, None
-            else:
-                logging.error(
-                    f"PRE-FLIGHT CHECK FAILED: File size ({size_mb:.2f} MB) exceeds Groq API limit (25 MB)"
-                )
-                return None, "TRANSCRIPTION_FAILED", None, None
-
+            return _handle_oversized_file(v_id, audio_filepath, ffmpeg_dir, ffmpeg_available)
+        
         elif file_size > MAX_ALLOWED_SIZE:
-            logging.warning(
-                f"PRE-FLIGHT CHECK: File size ({size_mb:.2f} MB) exceeds safe threshold ({MAX_ALLOWED_SIZE / (1024 * 1024):.2f} MB)"
-            )
+            logging.warning(f"PRE-FLIGHT CHECK: File size ({size_mb:.2f} MB) exceeds safe threshold ({MAX_ALLOWED_SIZE / (1024 * 1024):.2f} MB)")
             logging.warning("Proceeding with transcription - may risk API rejection")
         else:
             logging.info("PRE-FLIGHT CHECK PASSED: File size within safe limits")
 
-        # Check if Groq Whisper is available (not rate limited)
-        if not is_groq_whisper_available():
-            logging.warning(
-                f"Groq Whisper is rate limited for {v_id}. Skipping to fallback services..."
-            )
-
-            # Try AssemblyAI as first fallback
-            assemblyai_result = transcribe_with_assemblyai(audio_filepath, v_id)
-            if assemblyai_result:
-                full_text = assemblyai_result
-                logging.info(
-                    f"Failover successful: AssemblyAI provided transcription for {v_id}"
-                )
-            else:
-                logging.warning(
-                    f"AssemblyAI fallback failed for {v_id}. Trying final fallback..."
-                )
-                gemini_result = transcribe_with_gemini_audio(v_id)
-                if gemini_result:
-                    full_text = gemini_result
-                    logging.info(
-                        f"Final fallback successful: Gemini 3.1 Flash Lite Preview provided transcription for {v_id}"
-                    )
-                else:
-                    logging.error(
-                        f"All transcription services failed for {v_id}. No transcription available."
-                    )
-                    return "TRANSCRIPTION_FAILED", None
-
-        # Try Groq Whisper transcription
-        try:
-            logging.info(f"Attempting Groq Whisper transcription for {v_id}...")
-
-            # Log Groq input
-            logging.info("=== GROQ WHISPER API INPUT ===")
-            logging.info("Model: whisper-large-v3-turbo")
-            logging.info(f"File: {os.path.basename(audio_filepath)}")
-            logging.info(f"File size: {file_size:,} bytes ({size_mb:.2f} MB)")
-            logging.info("=== END GROQ WHISPER API INPUT ===")
-
-            with open(audio_filepath, "rb") as audio_file:
-                transcription = model_manager.client.audio.transcriptions.create(
-                    file=(audio_filepath, audio_file.read()),
-                    model="whisper-large-v3-turbo",
-                    response_format="json",
-                    language="sv",
-                    temperature=0.0,
-                )
-
-            if transcription and transcription.text:
-                full_text = transcription.text
-                # Extract actual model used from transcription response
-                actual_model = (
-                    transcription.model
-                    if hasattr(transcription, "model")
-                    else "whisper-large-v3-turbo"
-                )
-                logging.info(
-                    f"Groq Whisper transcription successful for {v_id} ({len(full_text)} characters)"
-                )
-                logging.info(f"Transcription service used: {actual_model}")
-                transcription_model = (
-                    actual_model  # Set the model and continue to AI analysis
-                )
-            else:
-                logging.error(f"Groq Whisper returned empty transcription for {v_id}")
-                return None, None, None, None
-
-        except Exception as e:
-            if "413" in str(e) or "too large" in str(e).lower():
-                logging.error(
-                    f"Audio file too large for Groq API (max 25MB). Skipping video {v_id} as transcription is required."
-                )
-                return None, "TRANSCRIPTION_FAILED", None, None
-            elif "429" in str(e) or "Too Many Requests" in str(e):
-                logging.warning(
-                    f"Groq API rate limit hit (429) for {v_id}. Trying fallback services..."
-                )
-
-                # Try AssemblyAI as first fallback
-                assemblyai_result = transcribe_with_assemblyai(audio_filepath, v_id)
-                if assemblyai_result:
-                    full_text = assemblyai_result
-                    logging.info(
-                        f"Failover successful: AssemblyAI provided transcription for {v_id}"
-                    )
-                else:
-                    logging.warning(
-                        f"AssemblyAI fallback failed for {v_id}. Trying final fallback..."
-                    )
-                    gemini_result = transcribe_with_gemini_audio(v_id)
-                    if gemini_result:
-                        full_text = gemini_result
-                        logging.info(
-                            f"Final fallback successful: Gemini 3.1 Flash Lite Preview provided transcription for {v_id}"
-                        )
-                    else:
-                        logging.error(
-                            f"All transcription services failed for {v_id}. No transcription available."
-                        )
-                        return None, "TRANSCRIPTION_FAILED", None, None
-            else:
-                logging.error(
-                    f"Transcription API error for video {v_id}. Skipping as transcription is required."
-                )
-                return None, "TRANSCRIPTION_FAILED", None, None
-
+        # Transcription
+        full_text, transcription_model = _attempt_transcription(audio_filepath, v_id, file_size)
+        
+        # AI Analysis
+        if full_text and full_text != "TRANSCRIPTION_FAILED":
+            logging.info(f"Proceeding with AI analysis for {v_id}...")
+            
+            # Summarize long transcripts to fit token limits
+            summarized_transcript = summarize_transcript(full_text, title)
+            
+            # Perform AI analysis
+            ai_analysis = _perform_ai_analysis(v_id, title, summarized_transcript)
+            
+            # Store results
+            _store_analysis_results(v_id, channel_name, title, publication_date, full_text, ai_analysis)
+        else:
+            ai_analysis = None
+        
     finally:
-        # Ensure cleanup ALWAYS happens
-        if audio_filepath and os.path.exists(audio_filepath):
-            try:
-                os.remove(audio_filepath)
-                logging.info(f"Cleaned up temporary audio file for {v_id}")
-            except Exception as cleanup_e:
-                logging.warning(f"Failed to cleanup audio file: {cleanup_e}")
-
-    # Proceed with AI analysis only if we have valid transcript text
-    if full_text and full_text != "TRANSCRIPTION_FAILED":
-        logging.info(f"Proceeding with AI analysis for {v_id}...")
-
-        # Summarize long transcripts to fit token limits
-        summarized_transcript = summarize_transcript(full_text, title)
-
-        # AI analysis via Groq (using summarized transcript to fit token limits)
-        try:
-            prompt = f"""Du är en klinisk medieanalytiker.
-                Leverera en rak och kompakt analys av videon "{title}".
-                Var objektiv men 'hård'.
-                **Instruktioner:**
-                
-                1. **Sammanfattning:** Max 2 meningar om den dominerande stämningen.
-                Nämn ENDAST like/dislike-förhållandet om likes understiger 90%, och väv då in det organiskt för att förklara diskrepans eller förstärka kritiken.
-                Om likes är 90% eller högre, ignorera siffran helt.
-                
-                **Juridisk bedömning:** Inled alltid med meningen 'Sannolikheten är [hög/låg] för förtal.'
-                Följ upp med max en mening som konkret motiverar bedömningen (t.ex. förekomst av anklagelser om brott, grova förolämpningar eller koordinerade drev).
-                
-                **KRITISKT - FÖLJ EXAKT:**
-                - ABSOLUT INGA think-blocks (```), resonemang eller tankprocesser
-                - VISA INTE DITT TÄNKANDE - ge bara slutgiltig analys
-                - Använd INGEN markdown-formatering eller specialtecken
-                - Fetmarkera ENDAST de inledande orden (**Sammanfattning:** och **Juridisk bedömning:**)
-                - Inga listor, inga rubriker, inga kursiveringar
-                - Ge svaret som REN TEXT utan några formateringselement
-                - BÖRJA DIREKT med analysen, ingen inlednin
-                
-                **Data:**
-                Transkription (AI-sammanfattning): {summarized_transcript}
-"""
-
-            # Format the prompt with actual transcript content
-            prompt = prompt.format(summarized_transcript=summarized_transcript)
-
-            # Store prompt and analysis in new structure
-
-            analysis_stats = load_analysis_stats()
-            # Use the actual channel name passed to the function
-            # channel_name = "transcript_analysis"
-
-            # Find or create video entry
-            video_entry = find_or_create_video(
-                analysis_stats, channel_name, v_id, title, publication_date
-            )
-
-            # Add transcription analysis
-            add_analysis_to_video(
-                video_entry,
-                "raw_transcript",
-                prompt,
-                full_text if full_text else "No transcription available",
-                transcription_model or "whisper-large-v3-turbo",
-            )
-
-            # Save updated stats
-            save_analysis_stats(analysis_stats)
-
-            logging.info(f"Saved transcript analysis to JSON for video {v_id}")
-
-            analysis, used_model = model_manager.try_model_with_fallback(prompt)
-
-            if analysis:
-                # clean_ai_output disabled - using raw analysis
-                cleaned_analysis = analysis
-                logging.info(
-                    f"AI analysis completed for {v_id} using model '{used_model}'."
-                )
-
-                # Update video entry with actual analysis output
-                add_analysis_to_video(
-                    video_entry, "ai_analysis", prompt, cleaned_analysis, used_model
-                )
-                save_analysis_stats(analysis_stats)
-
-                return full_text, cleaned_analysis, used_model, transcription_model
-            else:
-                logging.warning(
-                    f"AI analysis failed for {v_id} with all available models."
-                )
-                return full_text, None, None, transcription_model
-
-        except Exception as e:
-            logging.error(f"Groq analysis failed for {v_id}: {e}")
-            return full_text, None, None, transcription_model
-    else:
-        # No valid transcript, return failure
-        logging.warning(f"No valid transcript available for AI analysis for {v_id}")
-        return None, "TRANSCRIPTION_FAILED", None, transcription_model
+        _cleanup_audio_file(audio_filepath, v_id)
 
 
 # --- MAIN LOGIC ---
