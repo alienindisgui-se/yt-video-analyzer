@@ -249,11 +249,132 @@ class ModelManager:
         )
         return DEFAULT_MODEL
 
+    def _build_model_priority_list(self):
+        """Build ordered list of models to try, prioritized by capacity"""
+        logging.info("=== FUNCTION START: _build_model_priority_list ===")
+        
+        models_by_capacity = [
+            (DEFAULT_MODEL, 10000),  # Highest capacity
+            ("qwen/qwen3-32b", 4500),
+            ("llama-3.1-8b-instant", 4500),
+        ]
+        
+        models_to_try = []
+        seen = set()
+        
+        # Add models by capacity order
+        for model_name, capacity in models_by_capacity:
+            if model_name in self.available_models and model_name not in seen:
+                models_to_try.append(model_name)
+                seen.add(model_name)
+        
+        # Add any remaining available fallback models
+        for model in self.fallback_models:
+            if model not in seen and model in self.available_models:
+                models_to_try.append(model)
+                seen.add(model)
+        
+        # Ultimate fallback to default model
+        if DEFAULT_MODEL not in models_to_try and DEFAULT_MODEL in self.available_models:
+            models_to_try.append(DEFAULT_MODEL)
+        
+        return models_to_try
+
+    def _reduce_prompt_content(self, prompt, attempt):
+        """Progressively reduce prompt content for retry attempts"""
+        logging.info("=== FUNCTION START: _reduce_prompt_content ===")
+        
+        reduction_factor = 0.6 - (attempt * 0.1)  # 60%, 50%, 40%
+        if reduction_factor < 0.3:
+            reduction_factor = 0.3
+        
+        lines = prompt.split("\n")
+        if len(lines) > 4:
+            keep_lines = max(2, len(lines) // 3)
+            reduced_lines = (
+                lines[:keep_lines]
+                + ["\n... [content reduced for retry]...\n"]
+                + lines[-2:]
+            )
+            reduced_prompt = "\n".join(reduced_lines)
+            logging.info(f"Retry {attempt + 1}: Reduced prompt content by {int((1 - reduction_factor) * 100)}% due to previous 413 errors")
+            return reduced_prompt
+        
+        return prompt
+
+    def _prepare_prompt_for_attempt(self, prompt, model_name, attempt):
+        """Validate and prepare prompt for specific model attempt"""
+        logging.info("=== FUNCTION START: _prepare_prompt_for_attempt ===")
+        
+        # Get token limit for this model
+        max_tokens = self.model_limits.get(model_name, 4500)
+        
+        # Reduce content if this is a retry attempt
+        current_prompt = prompt
+        if attempt > 0:
+            current_prompt = self._reduce_prompt_content(prompt, attempt)
+        
+        # Log payload size before validation
+        log_payload_size(current_prompt, model_name, max_tokens, "prompt")
+        
+        # Validate and trim content if necessary
+        validated_prompt, final_tokens, was_trimmed = validate_and_trim_content(
+            current_prompt, max_tokens, "prompt", "beginning"
+        )
+        
+        if was_trimmed:
+            logging.info(f"Content was trimmed for {model_name} to fit token limits")
+        
+        return validated_prompt, final_tokens
+
+    def _log_api_details(self, content, content_type="input"):
+        """Log API input/output details with proper formatting"""
+        logging.info("=== FUNCTION START: _log_api_details ===")
+        
+        content_json = json.dumps(content, indent=2, ensure_ascii=False)
+        if len(content_json) > 1000:
+            logging.info(f"{content_type.capitalize()} (first 1000 chars):")
+            for line in content_json.split("\n")[:10]:
+                logging.info(line)
+            if len(content_json.split("\n")) > 10:
+                logging.info("... (truncated)")
+            logging.info(f"[Full {content_type} length: {len(content_json)} chars]")
+        else:
+            for line in content_json.split("\n"):
+                logging.info(line)
+
+    def _call_model_api(self, validated_prompt, model_name):
+        """Make API call to specified model"""
+        logging.info("=== FUNCTION START: _call_model_api ===")
+        
+        chat_completion = self.client.chat.completions.create(
+            messages=[{"role": "user", "content": validated_prompt}],
+            model=model_name,
+        )
+        return chat_completion.choices[0].message.content.strip()
+
+    def _handle_api_error(self, error, model_name):
+        """Handle different types of API errors"""
+        logging.info("=== FUNCTION START: _handle_api_error ===")
+        
+        error_msg = str(error).lower()
+        if "413" in error_msg or "payload too large" in error_msg:
+            logging.error(
+                f"Model {model_name} failed: 413 Payload Too Large. This indicates our token estimation still needs adjustment."
+            )
+            return "payload_too_large"
+        elif "429" in error_msg or "rate limit" in error_msg:
+            logging.warning(f"Model {model_name} failed: Rate limit reached - {str(error)[:100]}...")
+            return "rate_limit"
+        else:
+            logging.warning(f"Model {model_name} failed: {str(error)}")
+            return "other_error"
+
     def try_model_with_fallback(self, prompt):
         """Try to generate summary with fallback models, prioritizing higher token limits"""
         logging.info("=== FUNCTION START: try_model_with_fallback ===")
 
-        # Log self and prompt nicely formatted
+        # Log initial state and prompt
         logging.info("=== MODEL MANAGER STATE ===")
         logging.info(f"Available models: {self.available_models}")
         logging.info(f"Primary model: {self.primary_model}")
@@ -266,143 +387,38 @@ class ModelManager:
         logging.info(f"Prompt preview (first 500 chars): {prompt[:500]}...")
         logging.info("=== END PROMPT CONTENT ===")
 
-        # Sort models by estimated token capacity (higher limits first) - Gemini disabled
-        models_by_capacity = [
-            (DEFAULT_MODEL, 10000),  # Highest capacity
-            # ("gemini-2.0-flash", 7000),  # Gemini disabled
-            ("qwen/qwen3-32b", 4500),
-            ("llama-3.1-8b-instant", 4500),
-        ]
+        # Get ordered list of models to try
+        models_to_try = self._build_model_priority_list()
 
-        # Add primary and fallback models in capacity order
-        models_to_try = []
-        seen = set()
-
-        for model_name, capacity in models_by_capacity:
-            if model_name in self.available_models and model_name not in seen:
-                models_to_try.append(model_name)
-                seen.add(model_name)
-
-        # Add any remaining available models
-        for model in self.fallback_models:
-            if model not in seen and model in self.available_models:
-                models_to_try.append(model)
-                seen.add(model)
-
-        # Ultimate fallback
-        if (
-            DEFAULT_MODEL not in models_to_try
-            and DEFAULT_MODEL in self.available_models
-        ):
-            models_to_try.append(DEFAULT_MODEL)
-
+        # Try each model in order
         for attempt, model_name in enumerate(models_to_try):
             try:
-                # Get token limit for this model
-                max_tokens = self.model_limits.get(model_name, 4500)
-
-                # Progressive content reduction if we've had 413 errors before
-                current_prompt = prompt
-                if attempt > 0:
-                    # Reduce content size progressively for retry attempts
-                    reduction_factor = 0.6 - (attempt * 0.1)  # 60%, 50%, 40%
-                    if reduction_factor < 0.3:
-                        reduction_factor = 0.3
-
-                    # Apply reduction to prompt content
-                    lines = current_prompt.split("\n")
-                    if len(lines) > 4:
-                        # Keep first few lines and reduce middle content
-                        keep_lines = max(2, len(lines) // 3)
-                        reduced_lines = (
-                            lines[:keep_lines]
-                            + ["\n... [content reduced for retry]...\n"]
-                            + lines[-2:]
-                        )
-                        current_prompt = "\n".join(reduced_lines)
-                        logging.info(
-                            f"Retry {attempt + 1}: Reduced prompt content by {int((1 - reduction_factor) * 100)}% due to previous 413 errors"
-                        )
-
-                # Log payload size before validation
-                log_payload_size(current_prompt, model_name, max_tokens, "prompt")
-
-                # Validate and trim content if necessary
-                validated_prompt, final_tokens, was_trimmed = validate_and_trim_content(
-                    current_prompt, max_tokens, "prompt", "beginning"
-                )
-
-                if was_trimmed:
-                    logging.info(
-                        f"Content was trimmed for {model_name} to fit token limits"
-                    )
-
-                logging.info(
-                    f"Attempting to use model: {model_name} (attempt {attempt + 1}/{len(models_to_try)})"
-                )
-
-                # Log AI model input
-                # logging.info("=== AI MODEL INPUT ===")
-                # logging.info(f"Model: {model_name}")
-
-                # Log JSON with proper formatting - ensure newlines are preserved
-                prompt_json = json.dumps(validated_prompt, indent=2, ensure_ascii=False)
-                if len(prompt_json) > 1000:
-                    # logging.info("Input (first 1000 chars):")
-                    for line in prompt_json.split("\n")[:10]:  # Show first 10 lines
-                        logging.info(line)
-                    # if len(prompt_json.split('\n')) > 10:
-                    # logging.info("... (truncated)")
-                    # logging.info(f"[Full input length: {len(prompt_json)} chars]")
-                # else:
-                #     for line in prompt_json.split('\n'):
-                #         logging.info(line)
-                # logging.info("=== END AI MODEL INPUT ===")
-
-                # Choose API client based on model provider
-                # Use Groq API only - Gemini disabled
-                chat_completion = self.client.chat.completions.create(
-                    messages=[{"role": "user", "content": validated_prompt}],
-                    model=model_name,
-                )
-                summary = chat_completion.choices[0].message.content.strip()
-
-                # Log AI model output
+                logging.info(f"Attempting to use model: {model_name} (attempt {attempt + 1}/{len(models_to_try)})")
+                
+                # Prepare prompt for this attempt
+                validated_prompt, final_tokens = self._prepare_prompt_for_attempt(prompt, model_name, attempt)
+                
+                # Log input details
+                logging.info("=== AI MODEL INPUT ===")
+                logging.info(f"Model: {model_name}")
+                self._log_api_details(validated_prompt, "input")
+                logging.info("=== END AI MODEL INPUT ===")
+                
+                # Make API call
+                summary = self._call_model_api(validated_prompt, model_name)
+                
+                # Log output details
                 logging.info("=== AI MODEL OUTPUT ===")
                 logging.info(f"Model: {model_name}")
-
-                # Log JSON with proper formatting - ensure newlines are preserved
-                summary_json = json.dumps(summary, indent=2, ensure_ascii=False)
-                if len(summary_json) > 1000:
-                    logging.info("Output (first 1000 chars):")
-                    for line in summary_json.split("\n")[:10]:  # Show first 10 lines
-                        logging.info(line)
-                    if len(summary_json.split("\n")) > 10:
-                        logging.info("... (truncated)")
-                    logging.info(f"[Full output length: {len(summary_json)} chars]")
-                else:
-                    for line in summary_json.split("\n"):
-                        logging.info(line)
+                self._log_api_details(summary, "output")
                 logging.info("=== END AI MODEL OUTPUT ===")
-
-                logging.info(
-                    f"Successfully generated summary using model: {model_name} ({final_tokens} tokens)"
-                )
+                
+                logging.info(f"Successfully generated summary using model: {model_name} ({final_tokens} tokens)")
                 return summary, model_name
-
+                
             except Exception as e:
-                error_msg = str(e).lower()
-                if "413" in error_msg or "payload too large" in error_msg:
-                    logging.error(
-                        f"Model {model_name} failed: 413 Payload Too Large. This indicates our token estimation still needs adjustment."
-                    )
-                    # Continue to next model with reduced content
-                elif "429" in error_msg or "rate limit" in error_msg:
-                    logging.warning(
-                        f"Model {model_name} failed: Rate limit reached - {str(e)[:100]}..."
-                    )
-                else:
-                    logging.warning(f"Model {model_name} failed: {str(e)}")
+                self._handle_api_error(e, model_name)
+                # Continue to next model
 
         return None, None
 
