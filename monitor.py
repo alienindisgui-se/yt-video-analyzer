@@ -451,56 +451,96 @@ def save_config(config):
         logging.info("Configuration saved successfully")
     except Exception as e:
         logging.error(f"Failed to save configuration: {e}")
+        return None
 
+def _find_time_pattern_match(error_message):
+    """Find and return the first matching time pattern with its groups"""
+    logging.info("=== FUNCTION START: _find_time_pattern_match ===")
+    
+    time_patterns = [
+        r"(\d+)h\s*(\d+)m\s*(\d+)s",  # hours minutes seconds
+        r"(\d+)h\s*(\d+)m",  # hours minutes
+        r"(\d+)h\s*(\d+)s",  # hours seconds
+        r"(\d+)m\s*(\d+)s",  # minutes seconds
+        r"(\d+)h",  # just hours
+        r"(\d+)m",  # just minutes
+        r"(\d+)s",  # just seconds
+    ]
+    
+    for pattern in time_patterns:
+        match = re.search(pattern, error_message, re.IGNORECASE)
+        if match:
+            groups = match.groups()
+            logging.info(f"Pattern matched: {pattern}, Groups: {groups}")
+            return pattern, groups
+    
+    logging.warning("No duration pattern found in error message")
+    return None, None
+
+def _convert_groups_to_seconds(pattern, groups):
+    """Convert matched groups to seconds based on pattern"""
+    logging.info("=== FUNCTION START: _convert_groups_to_seconds ===")
+    
+    if len(groups) == 3:  # h m s
+        return _convert_hms_to_seconds(groups)
+    elif len(groups) == 2:
+        if "h" in pattern and "m" in pattern:  # h m
+            return _convert_hm_to_seconds(groups)
+        elif "h" in pattern and "s" in pattern:  # h s
+            return _convert_hs_to_seconds(groups)
+        else:  # m s
+            return _convert_ms_to_seconds(groups)
+    else:  # single unit
+        return _convert_single_unit_to_seconds(pattern, groups)
+
+def _convert_hms_to_seconds(groups):
+    """Convert hours, minutes, seconds to total seconds"""
+    logging.info("=== FUNCTION START: _convert_hms_to_seconds ===")
+    hours, minutes, seconds = map(int, groups)
+    return hours * 3600 + minutes * 60 + seconds
+
+def _convert_hm_to_seconds(groups):
+    """Convert hours, minutes to total seconds"""
+    logging.info("=== FUNCTION START: _convert_hm_to_seconds ===")
+    hours, minutes = map(int, groups)
+    return hours * 3600 + minutes * 60
+
+def _convert_hs_to_seconds(groups):
+    """Convert hours, seconds to total seconds"""
+    logging.info("=== FUNCTION START: _convert_hs_to_seconds ===")
+    hours, seconds = map(int, groups)
+    return hours * 3600 + seconds
+
+def _convert_ms_to_seconds(groups):
+    """Convert minutes, seconds to total seconds"""
+    logging.info("=== FUNCTION START: _convert_ms_to_seconds ===")
+    minutes, seconds = map(int, groups)
+    return minutes * 60 + seconds
+
+def _convert_single_unit_to_seconds(pattern, groups):
+    """Convert single unit (hours, minutes, or seconds) to total seconds"""
+    logging.info("=== FUNCTION START: _convert_single_unit_to_seconds ===")
+    value = int(groups[0])
+    if "h" in pattern:
+        return value * 3600
+    elif "m" in pattern:
+        return value * 60
+    else:  # seconds
+        return value
 
 def parse_duration_from_error(error_message):
     """Parse duration like '2h36m57s' from error message and return seconds"""
     logging.info("=== FUNCTION START: parse_duration_from_error ===")
     try:
-        # Look for time patterns in the text
-        # This will find sequences like "2h36m57s", "1h30m", "45m", "30s", "2h"
-        time_patterns = [
-            r"(\d+)h\s*(\d+)m\s*(\d+)s",  # hours minutes seconds
-            r"(\d+)h\s*(\d+)m",  # hours minutes
-            r"(\d+)h\s*(\d+)s",  # hours seconds
-            r"(\d+)m\s*(\d+)s",  # minutes seconds
-            r"(\d+)h",  # just hours
-            r"(\d+)m",  # just minutes
-            r"(\d+)s",  # just seconds
-        ]
-
-        for pattern in time_patterns:
-            match = re.search(pattern, error_message, re.IGNORECASE)
-            if match:
-                groups = match.groups()
-                logging.info(f"Pattern matched: {pattern}, Groups: {groups}")
-
-                # Convert based on number of groups
-                if len(groups) == 3:  # h m s
-                    hours, minutes, seconds = map(int, groups)
-                    total_seconds = hours * 3600 + minutes * 60 + seconds
-                elif len(groups) == 2:
-                    if "h" in pattern and "m" in pattern:  # h m
-                        hours, minutes = map(int, groups)
-                        total_seconds = hours * 3600 + minutes * 60
-                    elif "h" in pattern and "s" in pattern:  # h s
-                        hours, seconds = map(int, groups)
-                        total_seconds = hours * 3600 + seconds
-                    else:  # m s
-                        minutes, seconds = map(int, groups)
-                        total_seconds = minutes * 60 + seconds
-                else:  # single unit
-                    value = int(groups[0])
-                    if "h" in pattern:
-                        total_seconds = value * 3600
-                    elif "m" in pattern:
-                        total_seconds = value * 60
-                    else:  # seconds
-                        total_seconds = value
-
-                logging.info(f"Parsed duration: {total_seconds} seconds")
-                return total_seconds
-
+        # Find matching time pattern
+        pattern, groups = _find_time_pattern_match(error_message)
+        
+        if pattern and groups:
+            # Convert matched groups to seconds
+            total_seconds = _convert_groups_to_seconds(pattern, groups)
+            logging.info(f"Parsed duration: {total_seconds} seconds")
+            return total_seconds
+        
         logging.warning("No duration pattern found in error message")
         return None
 
