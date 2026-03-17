@@ -1,0 +1,2461 @@
+import json
+import os
+import requests
+import time
+import random
+import sys
+import logging
+import tempfile
+import re
+from datetime import datetime, timedelta
+from dotenv import load_dotenv
+from groq import Groq
+from playwright.sync_api import sync_playwright, TimeoutError
+import yt_dlp
+import assemblyai as aai
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Validate required environment variables
+WEBHOOK = os.getenv("DISCORD_WEBHOOK")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+ASSEMBLYAI_API_KEY = os.getenv("ASSEMBLYAI_API_KEY")
+
+if not GROQ_API_KEY:
+    logging.error("GROQ_API_KEY environment variable is required but not set")
+    sys.exit(1)
+
+if not WEBHOOK:
+    logging.warning(
+        "DISCORD_WEBHOOK environment variable not set - Discord notifications will be disabled"
+    )
+
+if not GEMINI_API_KEY:
+    logging.warning(
+        "GEMINI_API_KEY environment variable not set - Gemini fallback will be unavailable"
+    )
+
+if not ASSEMBLYAI_API_KEY:
+    logging.warning(
+        "ASSEMBLYAI_API_KEY environment variable not set - AssemblyAI transcription fallback will be unavailable"
+    )
+
+# Setup logging and encoding
+sys.stdout.reconfigure(encoding="utf-8")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
+
+# WORKING 2026-03-16 17:40
+def get_gradient_color(like_ratio):
+    """Generate a color gradient from red to green based on like ratio (0-100)"""
+    # logging.info("=== FUNCTION START: get_gradient_color ===")
+    # Ensure like_ratio is within 0-100 range
+    ratio = max(0, min(100, like_ratio))
+
+    # Red (255, 0, 0) at 0% to Green (0, 255, 0) at 100%
+    red = int(255 * (1 - ratio / 100))
+    green = int(255 * (ratio / 100))
+    blue = 0
+
+    # Convert to hex color string
+    hex_color = f"{red:02x}{green:02x}{blue:02x}"
+    return int(hex_color, 16)
+
+
+# WORKING 2026-03-16 17:40
+def get_thumbnail_url(v_id):
+    """Get YouTube thumbnail URL for a video"""
+    # logging.info("=== FUNCTION START: get_thumbnail_url ===")
+    return f"https://img.youtube.com/vi/{v_id}/maxresdefault.jpg"
+
+
+def setup_run_logging():
+    """Setup file-based logging for individual runs with sequential numbering"""
+    logging.info("=== FUNCTION START: setup_run_logging ===")
+    # Find existing run logs to determine next number
+    run_logs = [
+        f for f in os.listdir(".") if f.startswith("runlog") and f.endswith(".log")
+    ]
+    run_numbers = []
+
+    for log_file in run_logs:
+        try:
+            # Extract number from filename like "runlog1.log", "runlog2.log", etc.
+            number = int(log_file.replace("runlog", "").replace(".log", ""))
+            run_numbers.append(number)
+        except ValueError:
+            continue
+
+    next_number = max(run_numbers) + 1 if run_numbers else 1
+    run_log_file = f"runlog{next_number}.log"
+
+    # Create file handler for run logging
+    file_handler = logging.FileHandler(run_log_file, mode="w", encoding="utf-8")
+    file_handler.setLevel(logging.INFO)
+    file_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    file_handler.setFormatter(file_formatter)
+
+    # Add file handler to root logger
+    logging.getLogger().addHandler(file_handler)
+
+    logging.info(
+        f"=== RUN {next_number} STARTED at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ==="
+    )
+    return run_log_file
+
+
+# Configuration
+CHANNELS = ["CarlFredrikAlexanderRask", "ANJO1", "MotVikten", "Skuldis"]
+STATE_FILE = "comment_state.json"
+ANALYSIS_STATS_FILE = "analysis_stats.json"  # Track video analysis counts per channel
+CONFIG_FILE = "config.json"
+
+
+def estimate_tokens(text, content_type="general"):
+    """
+    Estimate token count based on content type and character count.
+    Using conservative ratios to avoid 413 errors.
+    """
+    logging.info("=== FUNCTION START: estimate_tokens ===")
+    if not text:
+        return 0
+
+    char_count = len(text)
+
+    # Conservative token-to-character ratios (updated based on actual API behavior)
+    ratios = {
+        "general": 3.0,  # More conservative: 1 token ≈ 3 chars
+        "transcript": 2.8,  # Transcripts: dense, 1 token ≈ 2.8 chars
+        "comments": 3.2,  # Comments: informal, 1 token ≈ 3.2 chars
+        "prompt": 2.9,  # Instructions/prompts: 1 token ≈ 2.9 chars
+    }
+
+    ratio = ratios.get(content_type, ratios["general"])
+    return int(char_count / ratio)
+
+
+def validate_and_trim_content(
+    content, max_tokens, content_type="general", priority="beginning"
+):
+    """
+    Validate content size and trim if necessary to stay within token limits.
+
+    Args:
+        content: Text content to validate
+        max_tokens: Maximum allowed tokens
+        content_type: Type of content for accurate token estimation
+        priority: Trimming strategy - "beginning", "balanced", or "end"
+
+    Returns:
+        Tuple of (trimmed_content, estimated_tokens, was_trimmed)
+    """
+    logging.info("=== FUNCTION START: validate_and_trim_content ===")
+    if not content:
+        return "", 0, False
+
+    estimated_tokens = estimate_tokens(content, content_type)
+
+    if estimated_tokens <= max_tokens:
+        return content, estimated_tokens, False
+
+    logging.warning(
+        f"Content exceeds token limit: {estimated_tokens} > {max_tokens} (type: {content_type})"
+    )
+
+    # Calculate target character count based on token ratio - use 75% for safety margin
+    ratios = {"general": 3.0, "transcript": 2.8, "comments": 3.2, "prompt": 2.9}
+    ratio = ratios.get(content_type, 3.0)
+    target_chars = int(max_tokens * ratio * 0.75)  # 75% to be very safe
+
+    if priority == "beginning":
+        # Keep beginning - most important info usually at start
+        trimmed = content[:target_chars] + "... [truncated]"
+    elif priority == "end":
+        # Keep end - for cases where conclusion matters most
+        trimmed = "... [truncated] " + content[-target_chars:]
+    else:  # balanced
+        # Keep beginning and end, sample middle
+        if target_chars < 200:
+            # Too short for balanced approach, just keep beginning
+            trimmed = content[:target_chars] + "... [truncated]"
+        else:
+            third = target_chars // 3
+            beginning = content[:third]
+            ending = content[-third:]
+            trimmed = beginning + "... [middle truncated] ..." + ending
+
+    new_tokens = estimate_tokens(trimmed, content_type)
+    logging.info(f"Trimmed content from {estimated_tokens} to {new_tokens} tokens ({len(content)} -> {len(trimmed)} chars) - using 75% safety margin")
+
+    return trimmed, new_tokens, True
+
+
+def log_payload_size(content, model_name, max_tokens, content_type="general"):
+    """Log payload size information for debugging"""
+    logging.info("=== FUNCTION START: log_payload_size ===")
+    estimated_tokens = estimate_tokens(content, content_type)
+    percentage = (estimated_tokens / max_tokens * 100) if max_tokens > 0 else 0
+
+    logging.info(
+        f"Payload size for {model_name}: {estimated_tokens}/{max_tokens} tokens ({percentage:.1f}%) - {content_type}"
+    )
+
+    if estimated_tokens > max_tokens:
+        logging.warning(
+            f"Payload EXCEEDS limit by {estimated_tokens - max_tokens} tokens!"
+        )
+
+    return estimated_tokens
+
+
+class ModelManager:
+    def __init__(self, config):
+        logging.info("=== FUNCTION START: ModelManager.__init__ ===")
+        self.config = config
+        self.ai_config = config.get("ai_models", {})
+        self.primary_model = self.ai_config.get("primary", DEFAULT_MODEL)
+        self.fallback_models = self.ai_config.get("fallback", [])
+        self.available_models = self.ai_config.get("models", {})
+        self.client = Groq(api_key=GROQ_API_KEY)
+
+        # Removed Gemini from model limits
+        self.model_limits = {
+            DEFAULT_MODEL: 128000,
+            "qwen/qwen3-32b": 32000,
+            "llama-3.1-8b-instant": 32000,
+        }
+
+        self.gemini_client = None  # Explicitly disabled for general use
+
+    def get_model_for_request(self):
+        """Select the best model for current request"""
+        logging.info("=== FUNCTION START: get_model_for_request ===")
+        # Try primary model first
+        if self.primary_model in self.available_models:
+            return self.primary_model
+
+        # Fallback to available models
+        for model in self.fallback_models:
+            if model in self.available_models:
+                return model
+
+        # Ultimate fallback to legacy model
+        logging.warning(
+            f"No configured models available, falling back to {DEFAULT_MODEL}"
+        )
+        return DEFAULT_MODEL
+
+    def try_model_with_fallback(self, prompt):
+        """Try to generate summary with fallback models, prioritizing higher token limits"""
+        logging.info("=== FUNCTION START: try_model_with_fallback ===")
+
+        # Log self and prompt nicely formatted
+        logging.info("=== MODEL MANAGER STATE ===")
+        logging.info(f"Available models: {self.available_models}")
+        logging.info(f"Primary model: {self.primary_model}")
+        logging.info(f"Fallback models: {self.fallback_models}")
+        logging.info(f"Model limits: {self.model_limits}")
+        logging.info("=== END MODEL MANAGER STATE ===")
+
+        logging.info("=== PROMPT CONTENT ===")
+        logging.info(f"Prompt length: {len(prompt)} characters")
+        logging.info(f"Prompt preview (first 500 chars): {prompt[:500]}...")
+        logging.info("=== END PROMPT CONTENT ===")
+
+        # Sort models by estimated token capacity (higher limits first) - Gemini disabled
+        models_by_capacity = [
+            (DEFAULT_MODEL, 10000),  # Highest capacity
+            # ("gemini-2.0-flash", 7000),  # Gemini disabled
+            ("qwen/qwen3-32b", 4500),
+            ("llama-3.1-8b-instant", 4500),
+        ]
+
+        # Add primary and fallback models in capacity order
+        models_to_try = []
+        seen = set()
+
+        for model_name, capacity in models_by_capacity:
+            if model_name in self.available_models and model_name not in seen:
+                models_to_try.append(model_name)
+                seen.add(model_name)
+
+        # Add any remaining available models
+        for model in self.fallback_models:
+            if model not in seen and model in self.available_models:
+                models_to_try.append(model)
+                seen.add(model)
+
+        # Ultimate fallback
+        if (
+            DEFAULT_MODEL not in models_to_try
+            and DEFAULT_MODEL in self.available_models
+        ):
+            models_to_try.append(DEFAULT_MODEL)
+
+        for attempt, model_name in enumerate(models_to_try):
+            try:
+                # Get token limit for this model
+                max_tokens = self.model_limits.get(model_name, 4500)
+
+                # Progressive content reduction if we've had 413 errors before
+                current_prompt = prompt
+                if attempt > 0:
+                    # Reduce content size progressively for retry attempts
+                    reduction_factor = 0.6 - (attempt * 0.1)  # 60%, 50%, 40%
+                    if reduction_factor < 0.3:
+                        reduction_factor = 0.3
+
+                    # Apply reduction to prompt content
+                    lines = current_prompt.split("\n")
+                    if len(lines) > 4:
+                        # Keep first few lines and reduce middle content
+                        keep_lines = max(2, len(lines) // 3)
+                        reduced_lines = (
+                            lines[:keep_lines]
+                            + ["\n... [content reduced for retry]...\n"]
+                            + lines[-2:]
+                        )
+                        current_prompt = "\n".join(reduced_lines)
+                        logging.info(
+                            f"Retry {attempt + 1}: Reduced prompt content by {int((1 - reduction_factor) * 100)}% due to previous 413 errors"
+                        )
+
+                # Log payload size before validation
+                log_payload_size(current_prompt, model_name, max_tokens, "prompt")
+
+                # Validate and trim content if necessary
+                validated_prompt, final_tokens, was_trimmed = validate_and_trim_content(
+                    current_prompt, max_tokens, "prompt", "beginning"
+                )
+
+                if was_trimmed:
+                    logging.info(
+                        f"Content was trimmed for {model_name} to fit token limits"
+                    )
+
+                logging.info(
+                    f"Attempting to use model: {model_name} (attempt {attempt + 1}/{len(models_to_try)})"
+                )
+
+                # Log AI model input
+                # logging.info("=== AI MODEL INPUT ===")
+                # logging.info(f"Model: {model_name}")
+
+                # Log JSON with proper formatting - ensure newlines are preserved
+                prompt_json = json.dumps(validated_prompt, indent=2, ensure_ascii=False)
+                if len(prompt_json) > 1000:
+                    # logging.info("Input (first 1000 chars):")
+                    for line in prompt_json.split("\n")[:10]:  # Show first 10 lines
+                        logging.info(line)
+                    # if len(prompt_json.split('\n')) > 10:
+                    # logging.info("... (truncated)")
+                    # logging.info(f"[Full input length: {len(prompt_json)} chars]")
+                # else:
+                #     for line in prompt_json.split('\n'):
+                #         logging.info(line)
+                # logging.info("=== END AI MODEL INPUT ===")
+
+                # Choose API client based on model provider
+                # Use Groq API only - Gemini disabled
+                chat_completion = self.client.chat.completions.create(
+                    messages=[{"role": "user", "content": validated_prompt}],
+                    model=model_name,
+                )
+                summary = chat_completion.choices[0].message.content.strip()
+
+                # Log AI model output
+                logging.info("=== AI MODEL OUTPUT ===")
+                logging.info(f"Model: {model_name}")
+
+                # Log JSON with proper formatting - ensure newlines are preserved
+                summary_json = json.dumps(summary, indent=2, ensure_ascii=False)
+                if len(summary_json) > 1000:
+                    logging.info("Output (first 1000 chars):")
+                    for line in summary_json.split("\n")[:10]:  # Show first 10 lines
+                        logging.info(line)
+                    if len(summary_json.split("\n")) > 10:
+                        logging.info("... (truncated)")
+                    logging.info(f"[Full output length: {len(summary_json)} chars]")
+                else:
+                    for line in summary_json.split("\n"):
+                        logging.info(line)
+                logging.info("=== END AI MODEL OUTPUT ===")
+
+                logging.info(
+                    f"Successfully generated summary using model: {model_name} ({final_tokens} tokens)"
+                )
+                return summary, model_name
+
+            except Exception as e:
+                error_msg = str(e).lower()
+                if "413" in error_msg or "payload too large" in error_msg:
+                    logging.error(
+                        f"Model {model_name} failed: 413 Payload Too Large. This indicates our token estimation still needs adjustment."
+                    )
+                    # Continue to next model with reduced content
+                elif "429" in error_msg or "rate limit" in error_msg:
+                    logging.warning(
+                        f"Model {model_name} failed: Rate limit reached - {str(e)[:100]}..."
+                    )
+                else:
+                    logging.warning(f"Model {model_name} failed: {str(e)}")
+
+        return None, None
+
+
+# Load configuration
+def load_config():
+    logging.info("=== FUNCTION START: load_config ===")
+    try:
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        logging.error(
+            f"Config file {CONFIG_FILE} not found. Script cannot continue without configuration."
+        )
+        sys.exit(1)
+
+
+CONFIG = load_config()
+CURRENT_LANGUAGE = CONFIG["language"]
+SETTINGS = CONFIG["settings"]
+PROMPTS = CONFIG["prompts"][CURRENT_LANGUAGE]
+
+
+def save_config(config):
+    """Save configuration to file"""
+    logging.info("=== FUNCTION START: save_config ===")
+    try:
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2, ensure_ascii=False)
+        logging.info("Configuration saved successfully")
+    except Exception as e:
+        logging.error(f"Failed to save configuration: {e}")
+
+
+def parse_duration_from_error(error_message):
+    """Parse duration like '2h36m57s' from error message and return seconds"""
+    logging.info("=== FUNCTION START: parse_duration_from_error ===")
+    try:
+        # Look for time patterns in the text
+        # This will find sequences like "2h36m57s", "1h30m", "45m", "30s", "2h"
+        time_patterns = [
+            r"(\d+)h\s*(\d+)m\s*(\d+)s",  # hours minutes seconds
+            r"(\d+)h\s*(\d+)m",  # hours minutes
+            r"(\d+)h\s*(\d+)s",  # hours seconds
+            r"(\d+)m\s*(\d+)s",  # minutes seconds
+            r"(\d+)h",  # just hours
+            r"(\d+)m",  # just minutes
+            r"(\d+)s",  # just seconds
+        ]
+
+        for pattern in time_patterns:
+            match = re.search(pattern, error_message, re.IGNORECASE)
+            if match:
+                groups = match.groups()
+                logging.info(f"Pattern matched: {pattern}, Groups: {groups}")
+
+                # Convert based on number of groups
+                if len(groups) == 3:  # h m s
+                    hours, minutes, seconds = map(int, groups)
+                    total_seconds = hours * 3600 + minutes * 60 + seconds
+                elif len(groups) == 2:
+                    if "h" in pattern and "m" in pattern:  # h m
+                        hours, minutes = map(int, groups)
+                        total_seconds = hours * 3600 + minutes * 60
+                    elif "h" in pattern and "s" in pattern:  # h s
+                        hours, seconds = map(int, groups)
+                        total_seconds = hours * 3600 + seconds
+                    else:  # m s
+                        minutes, seconds = map(int, groups)
+                        total_seconds = minutes * 60 + seconds
+                else:  # single unit
+                    value = int(groups[0])
+                    if "h" in pattern:
+                        total_seconds = value * 3600
+                    elif "m" in pattern:
+                        total_seconds = value * 60
+                    else:  # seconds
+                        total_seconds = value
+
+                logging.info(f"Parsed duration: {total_seconds} seconds")
+                return total_seconds
+
+        logging.warning("No duration pattern found in error message")
+        return None
+
+    except Exception as e:
+        logging.error(f"Error parsing duration: {e}")
+        return None
+
+
+def set_groq_whisper_rate_limit(reset_seconds):
+    """Set Groq Whisper rate limit reset time in config"""
+    logging.info("=== FUNCTION START: set_groq_whisper_rate_limit ===")
+    try:
+        reset_time = datetime.now() + timedelta(seconds=reset_seconds)
+
+        # Load current config
+        config = load_config()
+
+        # Add or update rate limit info
+        if "rate_limits" not in config:
+            config["rate_limits"] = {}
+
+        config["rate_limits"]["groq_whisper_reset_time"] = reset_time.isoformat()
+        config["rate_limits"]["groq_whisper_reset_seconds"] = reset_seconds
+
+        # Save updated config
+        save_config(config)
+
+        logging.info(
+            f"Groq Whisper rate limit set. Reset time: {reset_time.isoformat()}"
+        )
+        return reset_time
+
+    except Exception as e:
+        logging.error(f"Error setting rate limit: {e}")
+        return None
+
+
+def is_groq_whisper_available():
+    """Check if Groq Whisper is available (not rate limited)"""
+    logging.info("=== FUNCTION START: is_groq_whisper_available ===")
+    try:
+        config = load_config()
+
+        # Check if rate limit info exists
+        if (
+            "rate_limits" not in config
+            or "groq_whisper_reset_time" not in config["rate_limits"]
+        ):
+            logging.info("No Groq Whisper rate limit found - service available")
+            return True
+
+        reset_time_str = config["rate_limits"]["groq_whisper_reset_time"]
+        reset_time = datetime.fromisoformat(
+            reset_time_str.replace("Z", "+00:00")
+            if "Z" in reset_time_str
+            else reset_time_str
+        )
+        current_time = datetime.now()
+
+        if current_time >= reset_time:
+            # Rate limit has expired - clean it up
+            logging.info(
+                "Groq Whisper rate limit has expired - cleaning up and allowing access"
+            )
+
+            # Remove expired rate limit
+            config["rate_limits"].pop("groq_whisper_reset_time", None)
+            config["rate_limits"].pop("groq_whisper_reset_seconds", None)
+            save_config(config)
+
+            return True
+        else:
+            # Still rate limited
+            remaining_time = reset_time - current_time
+            logging.warning(
+                f"Groq Whisper is still rate limited. Reset in: {remaining_time}"
+            )
+            return False
+
+    except Exception as e:
+        logging.error(f"Error checking Groq Whisper availability: {e}")
+        # If we can't check, assume it's available to avoid false negatives
+        return True
+
+
+# Constants
+DEFAULT_MODEL = "llama-3.3-70b-versatile"
+UNKNOWN_CHANNEL = "Unknown Channel"
+UNKNOWN_DATE = "Okänt datum"
+WORST_AUDIO_FORMAT = "worstaudio/worst"
+
+# Initialize Model Manager
+model_manager = ModelManager(CONFIG)
+
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+]
+
+
+def summarize_transcript(transcript_text, title):
+    """Summarize long transcript using Gemini 3.1 Flash Lite Preview (Free Tier)"""
+    logging.info("=== FUNCTION START: summarize_transcript ===")
+
+    prompt = f"Summarize this YouTube video transcript titled '{title}' into key points (max 300 words):\n\n{transcript_text}"
+
+    #     prompt = f"""Summarize this YouTube video transcript titled '{title}' into a very concise summary (max 300 words):
+
+    # Key elements to capture:
+    # - Main topic and central argument
+    # - 2-3 key claims or points
+    # - Overall tone/sentiment
+    # - Any controversial elements
+
+    # Keep it extremely brief!
+
+    # Transcript:
+    # {transcript_text}"""
+
+    if GEMINI_API_KEY:
+        try:
+            from google import genai
+
+            client = genai.Client(api_key=GEMINI_API_KEY)
+
+            # Use 3.1 Flash Lite Preview - highest free tier availability
+            response = client.models.generate_content(
+                model="gemini-3.1-flash-lite-preview", contents=prompt
+            )
+
+            if response and response.text:
+                return response.text.strip()
+        except Exception as e:
+            logging.warning(f"Gemini summarization failed: {e}. Falling back to Groq.")
+
+    # FALLBACK to Groq if Gemini fails
+    try:
+        chat_completion = model_manager.client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model=DEFAULT_MODEL,
+        )
+        return chat_completion.choices[0].message.content.strip()
+    except Exception as e:
+        logging.error(f"Fallback summarization failed: {e}")
+        return transcript_text[:1000] + "..."  # Last resort truncation
+
+
+def get_video_stats(v_id):
+    """Fetch likes and dislikes using returnyoutubedislike.com API"""
+    logging.info("=== FUNCTION START: get_video_stats ===")
+    try:
+        api_url = f"https://returnyoutubedislikeapi.com/votes?videoId={v_id}"
+        response = requests.get(api_url, timeout=10000)
+        if response.status_code == 200:
+            data = response.json()
+            likes = data.get("likes", 0)
+            dislikes = data.get("dislikes", 0)
+            views = data.get("viewCount", 0)
+
+            # Calculate engagement ratio
+            total_reactions = likes + dislikes
+            like_ratio = (likes / total_reactions * 100) if total_reactions > 0 else 0
+
+            return {
+                "likes": likes,
+                "dislikes": dislikes,
+                "views": views,
+                "like_ratio": like_ratio,
+            }
+    except Exception as e:
+        logging.warning(f"Failed to fetch video stats from API: {e}")
+
+    return {"likes": 0, "dislikes": 0, "views": 0, "like_ratio": 0}
+
+
+def fetch_latest_videos(channels, fetch_depth=6):
+    """Fetch latest videos from channels using persistent queue system"""
+    logging.info("=== FUNCTION START: fetch_latest_videos ===")
+    # Load queue state
+    queue_state = load_queue_state()
+
+    # If pending queue is empty, increment depth and refill
+    if not queue_state["pending_queue"]:
+        # Increment fetch depth (use configured value, capped at 10 as requested, max 30)
+        queue_state["fetch_depth"] = min(
+            queue_state["fetch_depth"] + 1, min(fetch_depth, 10)
+        )
+        logging.info(
+            f"DATA CHANGE: Incremented fetch_depth to {queue_state['fetch_depth']} (configured max: {fetch_depth})"
+        )
+
+        # Load existing analyzed videos for duplicate checking
+        analysis_stats = load_analysis_stats()
+        completed_videos = set()
+        for channel_data in analysis_stats.values():
+            if isinstance(channel_data, dict) and "videos" in channel_data:
+                for video in channel_data["videos"]:
+                    if isinstance(video, dict) and "video_id" in video:
+                        if video.get("sentToDiscord"):
+                            completed_videos.add(video["video_id"])
+
+        # Fetch latest videos from channels
+        latest_videos = []
+        video_to_channel = {}
+        user_agent = random.choice(USER_AGENTS)
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context(
+                user_agent=user_agent,
+                viewport={"width": 1920, "height": 1080},
+                locale="en-US",
+                extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
+            )
+            page = context.new_page()
+
+            for channel in channels:
+                try:
+                    url = f"https://www.youtube.com/@{channel}/videos"
+                    page.goto(url, timeout=60000)
+                    page.wait_for_load_state("networkidle")
+
+                    # Handle YouTube consent page
+                    if "Before you continue to YouTube" in page.title():
+                        try:
+                            accept_button = (
+                                page.locator("button")
+                                .filter(has_text="Accept all")
+                                .first
+                            )
+                            if accept_button.count() > 0:
+                                accept_button.click()
+                                page.wait_for_timeout(2000)
+                                page.wait_for_load_state("networkidle")
+                        except Exception as e:
+                            logging.error("Failed to accept consent: " + str(e))
+
+                    # Scroll to load videos
+                    page.evaluate("window.scrollBy(0, 1000)")
+                    page.wait_for_timeout(5000)
+
+                    # Fetch multiple videos based on depth
+                    videos_found = 0
+                    max_videos = queue_state["fetch_depth"]
+
+                    # Try to get multiple videos
+                    video_locators = [
+                        'ytd-rich-item-renderer a[href*="/watch?v="]',
+                        'ytd-rich-grid-media a[href*="/watch?v="]',
+                    ]
+
+                    for locator_selector in video_locators:
+                        video_elements = page.locator(locator_selector)
+                        for i in range(min(max_videos, video_elements.count())):
+                            if videos_found >= max_videos:
+                                break
+
+                            href = video_elements.nth(i).get_attribute("href")
+                            if href and "v=" in href:
+                                v_id = href.split("v=")[1].split("&")[0]
+
+                                # Check if video is already completed
+                                if v_id not in completed_videos:
+                                    latest_videos.append(v_id)
+                                    video_to_channel[v_id] = channel
+                                    videos_found += 1
+
+                except Exception as e:
+                    logging.error(f"Failed to fetch videos for {channel}: {e}")
+
+            browser.close()
+
+        # Add new videos to pending queue
+        queue_state = add_to_pending_queue(queue_state, latest_videos)
+        save_queue_state(queue_state)
+        logging.info(
+            f"Queue state: {len(queue_state['pending_queue'])}, {len(queue_state['completed_ids'])} completed"
+        )
+
+    # Get next video from queue (FIFO)
+    next_video_id = pop_next_video(queue_state)
+    if next_video_id:
+        save_queue_state(queue_state)
+        channel_mapping = {}
+        if "video_to_channel" in locals() and video_to_channel:
+            channel_mapping = {next_video_id: video_to_channel[next_video_id]}
+        else:
+            # Find channel from analysis stats
+            analysis_stats = load_analysis_stats()
+            for channel_name, channel_data in analysis_stats.items():
+                if isinstance(channel_data, dict) and "videos" in channel_data:
+                    for video in channel_data["videos"]:
+                        if (
+                            isinstance(video, dict)
+                            and video.get("video_id") == next_video_id
+                        ):
+                            channel_mapping[next_video_id] = channel_name
+                            break
+        return [next_video_id], channel_mapping
+    else:
+        logging.info("No videos in queue to process")
+        return [], {}
+
+
+def is_video_completed(video):
+    """Check if video analysis is completed (posted to Discord)"""
+    logging.info("=== FUNCTION START: is_video_completed ===")
+    return video.get("sentToDiscord") is True
+
+
+def send_discord_message(video_entry, channel_name):
+    """Send analysis results to Discord webhook"""
+    logging.info("=== FUNCTION START: send_discord_message ===")
+    if not WEBHOOK:
+        logging.warning("Discord webhook not configured - skipping Discord post")
+        return False
+
+    try:
+        # Get videos count for this channel
+        analysis_stats = load_analysis_stats()
+        channel_data = analysis_stats.get(channel_name, {"videos": []})
+        videos_count = len(channel_data["videos"])
+
+        # Determine video word form
+        video_word = "video" if videos_count == 1 else "videor"
+
+        # Extract video data
+        v_id = video_entry.get("video_id", "")
+        title = video_entry.get("title", "Unknown Title")
+
+        # Get video creation date and format as YYYY-MM-DD
+        video_date = UNKNOWN_DATE
+
+        # Use publication_date if available, otherwise fall back to analysis_date
+        if (
+            "publication_date" in video_entry
+            and video_entry["publication_date"] != UNKNOWN_DATE
+        ):
+            video_date = video_entry["publication_date"]
+        elif "analysis_date" in video_entry:
+            # Convert from YYYY-MM-DD HH:MM:SS to YYYY-MM-DD
+            try:
+                from datetime import datetime
+
+                date_obj = datetime.strptime(
+                    video_entry["analysis_date"], "%Y-%m-%d %H:%M:%S"
+                )
+                video_date = date_obj.strftime("%Y-%m-%d")
+            except (ValueError, TypeError):
+                video_date = UNKNOWN_DATE
+
+        # Build Discord embed with analysis results
+        embed = {
+            "title": PROMPTS["discord_title"].format(title=title),
+            "color": get_gradient_color(
+                video_entry.get("video_stats", {}).get("like_ratio", 50)
+            ),
+            "image": {"url": get_thumbnail_url(v_id)},
+            "fields": [
+                {
+                    "name": PROMPTS["channel_field"],
+                    "value": channel_name,
+                    "inline": True,
+                },
+                {
+                    "name": "Like-ratio",
+                    "value": f"{video_entry.get('video_stats', {}).get('like_ratio', 0):.1f}%",
+                    "inline": True,
+                },
+                {"name": "Publicerad", "value": video_date, "inline": True},
+                {
+                    "name": PROMPTS["video_field"],
+                    "value": f"[{title}](https://www.youtube.com/watch?v={v_id})",
+                    "inline": False,
+                },
+            ],
+            "footer": {
+                "text": f"{videos_count} {video_word} från @{channel_name} analyserade"
+            },
+        }
+
+        # Add analysis content from AI analysis if available
+        if "analyses" in video_entry and "ai_analysis" in video_entry["analyses"]:
+            analysis_output = video_entry["analyses"]["ai_analysis"].get("output", "")
+            if analysis_output:
+                # Truncate if too long for Discord (2000 char limit per field)
+                if len(analysis_output) > 1900:
+                    analysis_output = analysis_output[:1900] + "..."
+                embed["description"] = analysis_output
+
+        # Send to Discord webhook
+        payload = {"embeds": [embed]}
+
+        # Log the complete payload nicely formatted
+        # logging.info("=== DISCORD PAYLOAD ===")
+        # logging.info("Payload:\n" + json.dumps(payload, indent=2, ensure_ascii=False))
+        # logging.info("=== END DISCORD PAYLOAD ===")
+
+        response = requests.post(WEBHOOK, json=payload, timeout=30)
+
+        if response.status_code == 204:
+            logging.info(
+                f"Successfully posted analysis for video {video_entry.get('video_id')} to Discord"
+            )
+            return True
+        else:
+            logging.error(
+                f"Failed to post to Discord: HTTP {response.status_code} - {response.text}"
+            )
+            return False
+
+    except Exception as e:
+        logging.error(f"Error posting to Discord: {e}")
+        return False
+
+
+def load_queue_state():
+    """Load queue state from analysis_stats.json with fallback defaults"""
+    # logging.info("=== FUNCTION START: load_queue_state ===")
+    try:
+        analysis_stats = load_analysis_stats()
+        queue_state = analysis_stats.get(
+            "_queue_state",
+            {
+                "pending_queue": [],
+                "completed_ids": [],
+                "fetch_depth": 1,
+                "current_processing": None,
+            },
+        )
+        # logging.info(f"Loaded queue state from analysis_stats.json")
+        return queue_state
+    except FileNotFoundError:
+        logging.info("DATA CHANGE: Creating new queue state in analysis_stats.json")
+        return {
+            "pending_queue": [],
+            "completed_ids": [],
+            "fetch_depth": 1,
+            "current_processing": None,
+        }
+    except (json.JSONDecodeError, IOError) as e:
+        logging.warning(f"Failed to load queue state: {e}. Creating fallback.")
+        return {
+            "pending_queue": [],
+            "completed_ids": [],
+            "fetch_depth": 1,
+            "current_processing": None,
+        }
+
+
+def save_queue_state(state):
+    """Save queue state to analysis_stats.json with retry mechanism"""
+    logging.info("=== FUNCTION START: save_queue_state ===")
+    try:
+        # Load existing analysis stats
+        analysis_stats = load_analysis_stats()
+
+        # Update queue state
+        analysis_stats["_queue_state"] = state
+
+        # Save the combined data
+        save_analysis_stats(analysis_stats)
+        logging.info("Saved queue state to analysis_stats.json")
+    except (IOError, OSError) as e:
+        logging.error(f"Failed to save queue state: {e}")
+
+
+def add_to_pending_queue(state, video_ids):
+    """Add new videos to pending queue avoiding duplicates"""
+    logging.info("=== FUNCTION START: add_to_pending_queue ===")
+    added_count = 0
+    for v_id in video_ids:
+        if v_id not in state["completed_ids"] and v_id not in state["pending_queue"]:
+            state["pending_queue"].append(v_id)
+            added_count += 1
+    logging.info(f"Added {added_count} new videos to pending queue")
+    return state
+
+
+def mark_video_completed(state, video_id):
+    """Mark video as completed and remove from processing"""
+    logging.info("=== FUNCTION START: mark_video_completed ===")
+    state["completed_ids"].append(video_id)
+    if video_id in state["pending_queue"]:
+        state["pending_queue"].remove(video_id)
+    state["current_processing"] = None
+    logging.info(f"Marked video {video_id} as completed")
+
+
+def pop_next_video(state):
+    """Get next video from queue (FIFO)"""
+    logging.info("=== FUNCTION START: pop_next_video ===")
+    if state["pending_queue"]:
+        video_id = state["pending_queue"].pop(0)  # FIFO - take first
+        state["current_processing"] = video_id
+        logging.info(f"Popped video {video_id} from queue for processing")
+        return video_id
+    return None
+
+
+def load_analysis_stats():
+    """Load analysis statistics from JSON file with simple retry mechanism"""
+    logging.info("=== FUNCTION START: load_analysis_stats ===")
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            with open(ANALYSIS_STATS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                logging.info(f"Loaded analysis stats from {ANALYSIS_STATS_FILE}")
+
+                # Ensure new structure exists
+                for channel in CHANNELS:
+                    if channel not in data:
+                        logging.info(
+                            f"DATA CHANGE: Adding new channel '{channel}' to analysis stats"
+                        )
+                        data[channel] = {"videos": []}
+                    elif "videos" not in data[channel]:
+                        # Migrate old structure to new
+                        logging.warning(
+                            f"DATA REPLACEMENT: Migrating old structure for channel '{channel}'"
+                        )
+                        old_data = data[channel]
+                        old_video_count = len(old_data.get("videos", []))
+
+                        data[channel] = {"videos": []}
+                        if "videos_analyzed" in old_data:
+                            # Create a placeholder video entry for migration
+                            migrated_video = {
+                                "video_id": old_data.get("last_video_id", ""),
+                                "title": "Migrated Analysis",
+                                "analysis_date": time.time(),
+                                "analyses": {
+                                    "comment_review": {
+                                        "input_prompt": old_data.get("last_prompt", ""),
+                                        "output": "[Migrated output]",
+                                        "model": old_data.get("last_model", ""),
+                                        "timestamp": old_data.get(
+                                            "last_checked", time.time()
+                                        ),
+                                    }
+                                },
+                            }
+                            data[channel]["videos"].append(migrated_video)
+                            logging.info(
+                                f"DATA CHANGE: Added migrated video entry for channel '{channel}'"
+                            )
+
+                        logging.info(
+                            f"DATA REPLACEMENT COMPLETE: Channel '{channel}' - old entries: {old_video_count}, new structure created"
+                        )
+                return data
+        except FileNotFoundError:
+            logging.info(
+                f"DATA CHANGE: Creating new analysis stats file at {ANALYSIS_STATS_FILE}"
+            )
+            return {channel: {"videos": []} for channel in CHANNELS}
+        except (json.JSONDecodeError, IOError) as e:
+            if attempt == max_retries - 1:
+                logging.warning(
+                    f"Failed to load analysis stats after {max_retries} attempts: {e}"
+                )
+                logging.info("DATA CHANGE: Creating fallback analysis stats structure")
+                return {channel: {"videos": []} for channel in CHANNELS}
+            logging.debug(f"Retry {attempt + 1} for loading analysis stats: {e}")
+            time.sleep(0.1 * (attempt + 1))
+    return {channel: {"videos": []} for channel in CHANNELS}
+
+
+def save_analysis_stats(stats):
+    """Save analysis statistics to JSON file with retry mechanism"""
+    logging.info("=== FUNCTION START: save_analysis_stats ===")
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            with open(ANALYSIS_STATS_FILE, "w", encoding="utf-8") as f:
+                json.dump(stats, f, indent=2, ensure_ascii=False)
+            return
+        except (IOError, OSError) as e:
+            if attempt == max_retries - 1:
+                logging.error(
+                    f"Failed to save analysis stats after {max_retries} attempts: {e}"
+                )
+                return
+            logging.debug(f"Retry {attempt + 1} for saving analysis stats: {e}")
+            time.sleep(0.1 * (attempt + 1))
+
+
+def format_timestamp(timestamp):
+    """Convert Unix timestamp to human-readable ISO 8601 format"""
+    if timestamp is None:
+        return None
+    return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d")
+
+
+def find_or_create_video(
+    stats, channel_name, video_id, title, publication_date=UNKNOWN_DATE
+):
+    """Find existing video or create new entry in the videos array"""
+    logging.info("=== FUNCTION START: find_or_create_video ===")
+    channel_data = stats.get(channel_name, {"videos": []})
+
+    # Find existing video
+    for video in channel_data["videos"]:
+        if video["video_id"] == video_id:
+            return video
+
+    # Create new video entry with human-readable date
+    current_time = time.time()
+    new_video = {
+        "video_id": video_id,
+        "title": title,
+        "analysis_date": format_timestamp(current_time),
+        "analysis_timestamp": current_time,
+        "publication_date": publication_date
+        if publication_date != UNKNOWN_DATE
+        else format_timestamp(current_time),
+        "analyses": {},
+    }
+    channel_data["videos"].append(new_video)
+    logging.info(
+        f"DATA CHANGE: Created new video entry for {video_id} from channel '{channel_name}'"
+    )
+    return new_video
+
+
+def add_analysis_to_video(video, analysis_type, input_prompt, output, model):
+    """Add analysis entry to a video's analyses"""
+    logging.info("=== FUNCTION START: add_analysis_to_video ===")
+    if "analyses" not in video:
+        video["analyses"] = {}
+
+    current_time = time.time()
+    video["analyses"][analysis_type] = {
+        "input_prompt": input_prompt,
+        "output": output,
+        "model": model,
+        "timestamp": format_timestamp(current_time),
+    }
+    logging.info(
+        f"DATA CHANGE: Added {analysis_type} analysis to video {video.get('video_id', 'unknown')}"
+    )
+
+
+def get_yt_data(v_id, deep_scrape=False):
+    logging.info("=== FUNCTION START: get_yt_data ===")
+    user_agent = random.choice(USER_AGENTS)
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(
+            user_agent=user_agent,
+            viewport={"width": 1920, "height": 1080},
+            locale="en-US",
+            extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
+        )
+        page = context.new_page()
+
+        try:
+            page.goto(f"https://www.youtube.com/watch?v={v_id}", timeout=60000)
+            page.wait_for_load_state("networkidle")
+            page.evaluate("window.scrollBy(0, 800)")
+
+            # Check for private/members-only content indicators in page content
+            page_content = page.content()
+            page_title = page.title()
+
+            # Check for private video indicators
+            private_indicators = [
+                "This video is private",
+                "Private video",
+                "Video unavailable",
+                "This video is not available",
+            ]
+
+            # Check for members-only content indicators (more specific patterns)
+            members_indicators = [
+                "Join this channel to get access to members-only content like this video",
+                "Become a member to watch this video",
+                "This video is only available to members",
+            ]
+
+            # Check page title for private indicators (more strict)
+            page_title_lower = page_title.lower()
+            if any(
+                indicator.lower() == page_title_lower
+                or indicator.lower() in page_title_lower
+                and "private" in page_title_lower
+                for indicator in private_indicators
+            ):
+                logging.warning(
+                    f"Private video detected in page title for {v_id}: {page_title}"
+                )
+                return (
+                    "MEMBERS_ONLY",
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    UNKNOWN_DATE,
+                    None,
+                    None,
+                    None,
+                )
+
+            # Check page content for members-only indicators (more specific matching)
+            page_content_lower = page_content.lower()
+            if any(
+                indicator.lower() in page_content_lower
+                for indicator in members_indicators
+            ):
+                logging.warning(
+                    f"Members-only content detected in page content for {v_id}"
+                )
+                return (
+                    "MEMBERS_ONLY",
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    UNKNOWN_DATE,
+                    None,
+                    None,
+                    None,
+                )
+
+            try:
+                page.wait_for_selector(
+                    "ytd-comments#comments", state="attached", timeout=15000
+                )
+                page.wait_for_timeout(3000)
+            except TimeoutError:
+                logging.warning(
+                    "Comments section did not attach in time. Video might have comments disabled."
+                )
+                return (
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    UNKNOWN_DATE,
+                    None,
+                    None,
+                    None,
+                )
+
+            title_elem = page.locator("h1.ytd-watch-metadata yt-formatted-string")
+            title = (
+                title_elem.text_content().strip()
+                if title_elem.count() > 0
+                else "Unknown"
+            )
+
+            # Extract channel name from YouTube page
+            channel_name = None
+            try:
+                # Try multiple selectors for channel name
+                channel_selectors = [
+                    "ytd-channel-name a.yt-simple-endpoint",  # Channel name link
+                    "ytd-video-owner-renderer a.yt-simple-endpoint",  # Video owner channel
+                    "ytd-channel-name #channel-name",  # Channel name text
+                    "ytd-video-owner-renderer #channel-name",  # Video owner channel text
+                    "#owner #channel-name a",  # Alternative channel name
+                    ".ytd-channel-name a",  # Another variant
+                ]
+
+                for selector in channel_selectors:
+                    try:
+                        channel_elem = page.locator(selector)
+                        if channel_elem.count() > 0:
+                            channel_text = channel_elem.first.text_content().strip()
+                            if channel_text and channel_text != "Unknown":
+                                channel_name = channel_text
+                                logging.info(
+                                    f"Extracted channel name '{channel_name}' for video {v_id}"
+                                )
+                                break
+                    except Exception:
+                        continue
+
+                # Extract YouTube publication date from metadata
+                publication_date = UNKNOWN_DATE
+                try:
+                    # Try to find publication date in page metadata
+                    date_selectors = [
+                        "#description-inner yt-formatted-string.ytd-video-secondary-info-renderer",
+                        "#info-strings yt-formatted-string.ytd-video-secondary-info-renderer",
+                        ".ytd-video-secondary-info-renderer yt-formatted-string",
+                        "#info-text",
+                        ".ytd-video-primary-info-renderer .ytd-simple-timestamp-renderer",
+                        "ytd-video-view-model-renderer .ytd-simple-timestamp-renderer",
+                        "ytd-metadata-row-renderer .ytd-simple-timestamp-renderer",
+                        ".ytd-simple-timestamp-renderer",
+                        "#meta-contents ytd-video-secondary-info-renderer yt-formatted-string",
+                        "span.ytd-video-secondary-info-renderer",
+                    ]
+
+                    found_date = False
+                    for selector in date_selectors:
+                        try:
+                            date_elem = page.locator(selector)
+                            if date_elem.count() > 0:
+                                date_text = date_elem.first.text_content().strip()
+
+                                # Parse various date formats from YouTube
+                                import re
+
+                                # Try to extract date from various formats
+                                date_patterns = [
+                                    r"(\d{1,2})\s+(januari|februari|mars|april|maj|juni|juli|augusti|september|oktober|november|december)\s+(\d{4})",
+                                    r"(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+(\d{4})",  # English abbreviations
+                                    r"(\d{4})-(\d{2})-(\d{2})",
+                                    r"(\d{4})/(\d{2})/(\d{2})",
+                                    r"(\d{1,2})\s+(\d{1,2})\s+(\d{4})",  # DD MM YYYY format
+                                    r"([A-Za-z]{3})\s+(\d{1,2}),?\s+(\d{4})",  # Mar 6, 2026 format
+                                ]
+
+                                for pattern in date_patterns:
+                                    match = re.search(pattern, date_text.lower())
+                                    if match:
+                                        groups = match.groups()
+
+                                        if len(groups) == 3:  # day month year
+                                            # Check if this is English abbreviation format (Mar 6, 2026)
+                                            if any(
+                                                month_abbr in date_text.lower()
+                                                for month_abbr in [
+                                                    "jan",
+                                                    "feb",
+                                                    "mar",
+                                                    "apr",
+                                                    "may",
+                                                    "jun",
+                                                    "jul",
+                                                    "aug",
+                                                    "sep",
+                                                    "oct",
+                                                    "nov",
+                                                    "dec",
+                                                ]
+                                            ):
+                                                month_abbr, day, year = groups
+                                                english_months = {
+                                                    "jan": "01",
+                                                    "feb": "02",
+                                                    "mar": "03",
+                                                    "apr": "04",
+                                                    "may": "05",
+                                                    "jun": "06",
+                                                    "jul": "07",
+                                                    "aug": "08",
+                                                    "sep": "09",
+                                                    "oct": "10",
+                                                    "nov": "11",
+                                                    "dec": "12",
+                                                }
+
+                                                month_num = english_months.get(
+                                                    month_abbr.lower(), "01"
+                                                )
+                                                if len(year) == 2:
+                                                    year = f"20{year}"  # Convert 26 to 2026 format
+
+                                                publication_date = (
+                                                    f"{year}-{month_num}-{day.zfill(2)}"
+                                                )
+                                                logging.info(
+                                                    f"Extracted YouTube publication date: {publication_date}"
+                                                )
+                                                found_date = True
+                                                break
+                                            elif any(
+                                                month_name in date_text.lower()
+                                                for month_name in [
+                                                    "januari",
+                                                    "februari",
+                                                    "mars",
+                                                    "april",
+                                                    "maj",
+                                                    "juni",
+                                                    "juli",
+                                                    "augusti",
+                                                    "september",
+                                                    "oktober",
+                                                    "november",
+                                                    "december",
+                                                ]
+                                            ):
+                                                day, month_name, year = groups
+                                                swedish_months = {
+                                                    "januari": "01",
+                                                    "februari": "02",
+                                                    "mars": "03",
+                                                    "april": "04",
+                                                    "maj": "05",
+                                                    "juni": "06",
+                                                    "juli": "07",
+                                                    "augusti": "08",
+                                                    "september": "09",
+                                                    "oktober": "10",
+                                                    "november": "11",
+                                                    "december": "12",
+                                                }
+
+                                                month_num = swedish_months.get(
+                                                    month_name.lower(), "01"
+                                                )
+                                                if len(year) == 2:
+                                                    year = f"20{year}"  # Convert 24 to 2024 format
+
+                                                publication_date = (
+                                                    f"{year}-{month_num}-{day.zfill(2)}"
+                                                )
+                                                logging.info(
+                                                    f"Extracted YouTube publication date: {publication_date}"
+                                                )
+                                                found_date = True
+                                                break
+                                            else:  # YYYY-MM-DD format
+                                                year, month, day = groups
+                                                publication_date = (
+                                                    f"{year}-{month}-{day}"
+                                                )
+                                                logging.info(
+                                                    f"Extracted YouTube publication date: {publication_date}"
+                                                )
+                                                found_date = True
+                                                break
+                                if found_date:
+                                    break
+                        except Exception as e:
+                            logging.debug(f"Selector '{selector}' failed: {e}")
+                            continue
+
+                    # If still not found, try searching page content for date patterns
+                    if not found_date:
+                        logging.info("Searching page content for date patterns...")
+                        page_content = page.content()
+
+                        # Look for date patterns in page content
+                        content_patterns = [
+                            r'"publishDate":"(\d{4}-\d{2}-\d{2})"',  # JSON publishDate
+                            r'"uploadDate":"(\d{4}-\d{2}-\d{2})"',  # JSON uploadDate
+                            r"(\d{1,2})\s+(januari|februari|mars|april|maj|juni|juli|augusti|september|oktober|november|december)\s+(\d{4})",
+                        ]
+
+                        for pattern in content_patterns:
+                            matches = re.findall(pattern, page_content)
+                            if matches:
+                                for match in matches:
+                                    if isinstance(match, tuple):
+                                        day, month_name, year = match
+                                        swedish_months = {
+                                            "januari": "01",
+                                            "februari": "02",
+                                            "mars": "03",
+                                            "april": "04",
+                                            "maj": "05",
+                                            "juni": "06",
+                                            "juli": "07",
+                                            "augusti": "08",
+                                            "september": "09",
+                                            "oktober": "10",
+                                            "november": "11",
+                                            "december": "12",
+                                        }
+                                        month_num = swedish_months.get(
+                                            month_name.lower(), "01"
+                                        )
+                                        publication_date = (
+                                            f"{year}-{month_num}-{day.zfill(2)}"
+                                        )
+                                    else:
+                                        publication_date = match
+                                    logging.info(
+                                        f"Found date in page content: {publication_date}"
+                                    )
+                                    found_date = True
+                                    break
+                                if found_date:
+                                    break
+
+                except Exception as e:
+                    logging.warning(f"Failed to extract publication date: {e}")
+
+                # If still not found, try to extract from URL or handle
+                if not channel_name:
+                    try:
+                        # Try to get channel handle from page URL or metadata
+                        channel_url_elem = page.locator(
+                            "ytd-channel-name a.yt-simple-endpoint"
+                        )
+                        if channel_url_elem.count() > 0:
+                            href = channel_url_elem.first.get_attribute("href")
+                            if href and "@" in href:
+                                # Extract handle from URL like /@channelname
+                                handle = href.split("@")[-1].split("/")[0]
+                                if handle:
+                                    channel_name = f"@{handle}"
+                                    logging.info(
+                                        f"Extracted channel handle '{channel_name}' from URL for video {v_id}"
+                                    )
+                    except Exception:
+                        pass
+
+            except Exception as e:
+                logging.warning(f"Failed to extract channel name for {v_id}: {e}")
+
+            # Log if channel extraction failed
+            if not channel_name:
+                logging.warning(
+                    f"Could not extract channel name for video {v_id}, will use fallback"
+                )
+
+            # Set extracted_channel_name for return
+            extracted_channel_name = channel_name
+
+            # Fetch video stats
+            video_stats = get_video_stats(v_id)
+
+            # Early detection for members-only/private content
+            # Check for indicators: zero engagement + title available suggests restricted content
+            if (
+                video_stats["likes"] == 0
+                and video_stats["dislikes"] == 0
+                and video_stats["like_ratio"] < 0.001
+                and title != "Unknown"
+            ):
+                logging.warning(
+                    f"Early detection: Video {v_id} shows signs of members-only/private content (zero engagement but title available)"
+                )
+                return (
+                    "MEMBERS_ONLY",
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    UNKNOWN_DATE,
+                    None,
+                    None,
+                    None,
+                )
+
+            ui_count = 0
+            # [Count extraction logic preserved for brevity]
+            count_locators = [
+                ("#count .yt-core-attributed-string", "yt-core-attributed-string"),
+                ("h2#count yt-formatted-string", "yt-formatted-string"),
+                ("yt-formatted-string.count-text", "count-text"),
+            ]
+            for selector, desc in count_locators:
+                try:
+                    loc = page.locator(selector)
+                    loc.wait_for(state="visible", timeout=10000)
+                    digits = "".join(
+                        filter(str.isdigit, loc.first.text_content().strip())
+                    )
+                    if digits:
+                        ui_count = int(digits)
+                        break
+                except TimeoutError:
+                    pass
+
+            # LANGUAGE-INDEPENDENT SORT TO "NEWEST FIRST"
+            if deep_scrape:
+                try:
+                    page.evaluate("""() => {
+                        const btn = document.querySelector('ytd-comments-header-renderer #sort-menu');
+                        if (btn) btn.click();
+                    }""")
+                    page.wait_for_timeout(1000)
+
+                    page.evaluate("""() => {
+                        const items = document.querySelectorAll('ytd-menu-service-item-renderer');
+                        if (items.length > 1) items[1].click();
+                    }""")
+                    page.wait_for_timeout(3000)
+                except Exception as e:
+                    logging.warning(
+                        f"Failed to sort comments: {e}. Proceeding with default sort."
+                    )
+
+            comments = {}
+            if deep_scrape:
+                logging.info(
+                    f"Starting scrape for '{title}'. UI reports ~{ui_count} comments."
+                )
+
+                # Phase 1: Load all top-level threads by scrolling
+                last_thread_count = 0
+                no_change = 0
+                while True:
+                    thread_nodes = page.locator("ytd-comment-thread-renderer")
+                    current_thread = thread_nodes.count()
+                    if current_thread == last_thread_count:
+                        no_change += 1
+                        if no_change >= 3:
+                            break
+                    else:
+                        no_change = 0
+                        last_thread_count = current_thread
+                    page.evaluate(
+                        "document.scrollingElement.scrollTop = document.scrollingElement.scrollHeight"
+                    )
+                    page.wait_for_timeout(5000)
+
+                # Phase 2: Expand replies using JavaScript to bypass actionability checks
+                max_iterations = 3  # Run a few times in case clicking reveals nested "show more" buttons
+
+                for i in range(max_iterations):
+                    try:
+                        # Inject JS to find all reply buttons and click them directly in the DOM
+                        clicks_dispatched = page.evaluate("""() => {
+                            const buttons = Array.from(document.querySelectorAll('ytd-button-renderer#more-replies button'));
+                            let count = 0;
+                            for (let btn of buttons) {
+                                // Basic check to ensure the button is actually rendered in the DOM
+                                if (btn.offsetParent !== null) { 
+                                    btn.click();
+                                    count++;
+                                }
+                            }
+                            return count;
+                        }""")
+
+                        if clicks_dispatched == 0:
+                            break
+
+                        # Wait a moment for the requested replies to render in the DOM
+                        page.wait_for_timeout(4000)
+
+                        # Scroll down to ensure we trigger any lazy-loaded elements
+                        page.evaluate(
+                            "document.scrollingElement.scrollTop = document.scrollingElement.scrollHeight"
+                        )
+                        page.wait_for_timeout(2000)
+
+                    except Exception as e:
+                        logging.warning(
+                            f"Iteration {i + 1} JS click failed: {str(e).splitlines()[0]}"
+                        )
+                        break
+
+                logging.info(
+                    f"Extracted {len(comments)} unique comments after deduplication."
+                )
+                if ui_count == 0 and len(comments) > 0:
+                    ui_count = len(comments)
+
+                # Get transcript and analysis
+                transcript_text, ai_analysis, ai_model, transcription_model = (
+                    get_transcript_and_analysis(
+                        v_id, title, channel_name, publication_date
+                    )
+                )
+
+                # Also run comprehensive analysis
+                # comprehensive_analysis = analyze_video_comprehensive(v_id, title, comments, video_stats, transcript_text, video_to_channel)
+
+                # Return statement moved inside the main try block
+                return (
+                    title,
+                    channel_name,
+                    ui_count,
+                    comments,
+                    video_stats,
+                    transcript_text,
+                    ai_analysis,
+                    ai_model,
+                    publication_date,
+                    extracted_channel_name,
+                    transcription_model,
+                )
+
+        except Exception as e:
+            logging.error(f"Scrape failed for {v_id}: {e}")
+            if "not enough values to unpack" in str(e):
+                logging.error(
+                    "Unpacking error details: Expected 4 values (transcript_text, ai_analysis, ai_model, transcription_model) but got fewer"
+                )
+                logging.error(
+                    "This usually means get_transcript_and_analysis() returned wrong number of values"
+                )
+            return (
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                UNKNOWN_DATE,
+                None,
+                None,
+                None,
+            )
+        finally:
+            browser.close()
+
+
+def transcribe_with_assemblyai(audio_filepath, v_id):
+    """Transcribe audio using AssemblyAI with automatic polling"""
+    logging.info("=== FUNCTION START: transcribe_with_assemblyai ===")
+    if not ASSEMBLYAI_API_KEY:
+        logging.error("AssemblyAI API key not available")
+        # ... (rest of the function remains the same)
+        return None
+
+    try:
+        logging.info(f"Starting AssemblyAI transcription for {v_id}...")
+
+        # Log AssemblyAI input
+        logging.info("=== ASSEMBLYAI API INPUT ===")
+        logging.info("Model: universal")
+        logging.info("Language: sv")
+        logging.info(f"File: {os.path.basename(audio_filepath)}")
+        logging.info(f"File size: {os.path.getsize(audio_filepath):,} bytes")
+        logging.info("Punctuation: True")
+        logging.info("Format text: True")
+        logging.info("=== END ASSEMBLYAI API INPUT ===")
+
+        aai.settings.api_key = ASSEMBLYAI_API_KEY
+        transcriber = aai.Transcriber()
+
+        # Using your correct, updated parameter
+        config = aai.TranscriptionConfig(
+            language_code="sv",
+            punctuate=True,
+            format_text=True,
+            speech_models=["universal"],  # Array of fallback models
+        )
+
+        # This single call safely handles the upload and the polling loop for us
+        transcript = transcriber.transcribe(audio_filepath, config=config)
+
+        if transcript.status == aai.TranscriptStatus.completed:
+            # Log AssemblyAI output
+            logging.info("=== ASSEMBLYAI API OUTPUT ===")
+            logging.info("Model: universal")
+            logging.info(f"Status: {transcript.status}")
+            logging.info(f"Output length: {len(transcript.text)} characters")
+            logging.info(
+                f"Output:\n{json.dumps(transcript.text, indent=2, ensure_ascii=False)}"
+            )
+            logging.info("=== END ASSEMBLYAI API OUTPUT ===")
+
+            logging.info(
+                f"AssemblyAI successful for {v_id} ({len(transcript.text)} chars)"
+            )
+            return transcript.text
+        else:
+            logging.error(f"AssemblyAI failed for {v_id}: {transcript.error}")
+            return None
+
+    except Exception as e:
+        logging.error(f"Unexpected error during AssemblyAI transcription: {str(e)}")
+        return None
+
+
+def transcribe_with_gemini_audio(v_id):
+    """Disabled to prevent billing/rate limit issues - using AssemblyAI/Whisper instead"""
+    logging.info(f"Gemini audio transcription disabled by config for {v_id}")
+    return None
+
+
+def get_transcript_and_analysis(
+    v_id, title, channel_name, publication_date=UNKNOWN_DATE
+):
+    """Downloads video audio and transcribes it using Groq's Whisper API."""
+    logging.info("=== FUNCTION START: get_transcript_and_analysis ===")
+
+    # Constants for file size management
+    GROQ_MAX_FILE_SIZE = 25 * 1024 * 1024  # 25MB in bytes
+    SAFETY_BUFFER = 2 * 1024 * 1024  # 2MB safety buffer
+    MAX_ALLOWED_SIZE = GROQ_MAX_FILE_SIZE - SAFETY_BUFFER
+
+    full_text = None
+    transcription_model = None
+    audio_filepath = None
+
+    try:
+        # Use secure temporary file
+        with tempfile.NamedTemporaryFile(suffix=".m4a", delete=False) as temp_file:
+            audio_filepath = temp_file.name
+
+        # Check for FFmpeg availability for compression
+        ffmpeg_available = False
+        ffmpeg_dir = None
+
+        # Define possible FFmpeg locations in priority order
+        current_dir = os.getcwd()
+        ffmpeg_locations = [
+            # 1. Project root directory (current check)
+            current_dir,
+            # 2. ffmpeg_temp directory where FFmpeg is actually located
+            os.path.join(
+                current_dir, "ffmpeg_temp", "ffmpeg-8.0.1-essentials_build", "bin"
+            ),
+        ]
+
+        for location in ffmpeg_locations:
+            local_ffmpeg = os.path.join(location, "ffmpeg.exe")
+            local_ffprobe = os.path.join(location, "ffprobe.exe")
+
+            ffmpeg_exists = os.path.exists(local_ffmpeg)
+            ffprobe_exists = os.path.exists(local_ffprobe)
+
+            if ffmpeg_exists and ffprobe_exists:
+                ffmpeg_available = True
+                ffmpeg_dir = location
+                # logging.info(f"FFmpeg detected successfully in {ffmpeg_dir}")
+                break
+            # else:
+            # logging.warning(f"FFmpeg files not found in {location}")
+
+        if not ffmpeg_available:
+            logging.warning("FFmpeg files not found in any expected locations")
+            logging.info("To fix this issue, you can:")
+            logging.info("1. Download FFmpeg from https://ffmpeg.org/download.html")
+            logging.info(
+                "2. Extract ffmpeg.exe and ffprobe.exe to the project root directory"
+            )
+            logging.info("3. Or ensure they are available in your system PATH")
+
+        if ffmpeg_available:
+            # Use FFmpeg with smart source selection and balanced compression
+            ydl_opts = {
+                "format": WORST_AUDIO_FORMAT,  # Start with lowest quality source to avoid huge files
+                "outtmpl": audio_filepath,
+                "quiet": True,
+                "no_warnings": True,
+                "extract_audio": True,
+                "keepvideo": False,
+                "nopart": True,
+                "noprogress": True,
+                "ffmpeg_location": ffmpeg_dir,  # Point to local FFmpeg
+                "postprocessors": [
+                    {
+                        "key": "FFmpegExtractAudio",
+                        "preferredcodec": "m4a",  # m4a codec for good quality at low bitrates
+                        "preferredquality": "16",  # Target 16kbps for balanced compression
+                    }
+                ],
+                "postprocessor_args": [
+                    "-ar",
+                    "16000",  # 16kHz sample rate (optimal for Whisper)
+                    "-ac",
+                    "1",  # Mono audio (halves file size)
+                    "-b:a",
+                    "16k",  # 16 kbps bitrate (balanced compression)
+                    "-c:a",
+                    "aac",  # Explicit AAC codec for better compression
+                ],
+            }
+            # logging.info(f"FFmpeg available - using aggressive compression to fit 25MB limit")
+        else:
+            # Fallback to basic extraction without compression
+            ydl_opts = {
+                "format": "bestaudio/best",
+                "outtmpl": audio_filepath,
+                "quiet": True,
+                "no_warnings": True,
+                "extract_audio": True,
+                "keepvideo": False,
+                "nopart": True,
+                "noprogress": True,
+            }
+            logging.warning(
+                "FFmpeg not available - using basic extraction (files may exceed 25MB limit)"
+            )
+
+        logging.info(f"Downloading audio for {v_id}...")
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([f"https://www.youtube.com/watch?v={v_id}"])
+
+        # Ensure yt-dlp didn't append an extra extension during post-processing
+        if not os.path.exists(audio_filepath):
+            possible_files = [
+                f
+                for f in os.listdir(os.path.dirname(audio_filepath))
+                if f.startswith(os.path.basename(audio_filepath))
+            ]
+            if possible_files:
+                audio_filepath = os.path.join(
+                    os.path.dirname(audio_filepath), possible_files[0]
+                )
+
+        # Enhanced file size analysis and pre-flight checks
+        file_size = os.path.getsize(audio_filepath)
+        size_mb = file_size / (1024 * 1024)
+        size_percentage = (file_size / GROQ_MAX_FILE_SIZE) * 100
+
+        logging.info(f"=== AUDIO FILE ANALYSIS for {v_id} ===")
+        logging.info(f"File size: {file_size:,} bytes ({size_mb:.2f} MB)")
+        logging.info(f"Size utilization: {size_percentage:.1f}% of API limit")
+
+        # Pre-flight size check
+        if file_size > GROQ_MAX_FILE_SIZE:
+            if ffmpeg_available:
+                logging.error(
+                    f"PRE-FLIGHT CHECK FAILED: File size ({size_mb:.2f} MB) exceeds Groq API limit (25 MB)"
+                )
+                logging.info("Attempting ultra-aggressive compression retry...")
+
+                # Clean up the oversized file
+                os.remove(audio_filepath)
+
+                # Balanced compression fallback
+                balanced_opts = {
+                    "format": WORST_AUDIO_FORMAT,  # Same low quality source
+                    "outtmpl": audio_filepath,
+                    "quiet": True,
+                    "no_warnings": True,
+                    "extract_audio": True,
+                    "keepvideo": False,
+                    "nopart": True,
+                    "noprogress": True,
+                    "ffmpeg_location": ffmpeg_dir,  # Point to local FFmpeg
+                    "postprocessors": [
+                        {
+                            "key": "FFmpegExtractAudio",
+                            "preferredcodec": "m4a",
+                            "preferredquality": "8",  # Target 8kbps for more compression
+                        }
+                    ],
+                    "postprocessor_args": [
+                        "-ar",
+                        "16000",  # 16kHz sample rate (maintain Whisper quality)
+                        "-ac",
+                        "1",  # Mono audio
+                        "-b:a",
+                        "8k",  # 8 kbps bitrate (more aggressive)
+                        "-c:a",
+                        "aac",  # AAC codec
+                        "-compression_level",
+                        "7",  # Moderate compression
+                    ],
+                }
+
+                logging.info(
+                    "Retrying with balanced compression (8kbps, moderate compression)..."
+                )
+                with yt_dlp.YoutubeDL(balanced_opts) as ydl:
+                    ydl.download([f"https://www.youtube.com/watch?v={v_id}"])
+
+                # Re-check file size after balanced compression
+                if os.path.exists(audio_filepath):
+                    balanced_file_size = os.path.getsize(audio_filepath)
+                    balanced_size_mb = balanced_file_size / (1024 * 1024)
+                    logging.info(
+                        f"Balanced compression result: {balanced_file_size:,} bytes ({balanced_size_mb:.2f} MB)"
+                    )
+
+                    if balanced_file_size <= GROQ_MAX_FILE_SIZE:
+                        logging.info(
+                            "Balanced compression successful! Proceeding with transcription."
+                        )
+                        file_size = balanced_file_size
+                        size_mb = balanced_size_mb
+                    else:
+                        logging.error(
+                            f"Balanced compression still too large ({balanced_size_mb:.2f} MB). Trying ultra-aggressive..."
+                        )
+
+                        # Clean up and try ultra-aggressive as final fallback
+                        os.remove(audio_filepath)
+
+                        # Ultra-aggressive compression settings (existing working solution)
+                        ultra_aggressive_opts = {
+                            "format": WORST_AUDIO_FORMAT,  # Lowest quality source
+                            "outtmpl": audio_filepath,
+                            "quiet": True,
+                            "no_warnings": True,
+                            "extract_audio": True,
+                            "keepvideo": False,
+                            "nopart": True,
+                            "noprogress": True,
+                            "ffmpeg_location": ffmpeg_dir,
+                            "postprocessors": [
+                                {
+                                    "key": "FFmpegExtractAudio",
+                                    "preferredcodec": "m4a",
+                                }
+                            ],
+                            "postprocessor_args": [
+                                "-ar",
+                                "16000",  # 16kHz sample rate (better for Whisper)
+                                "-ac",
+                                "1",  # Mono audio
+                                "-b:a",
+                                "4k",  # 4 kbps bitrate (extremely aggressive)
+                                "-c:a",
+                                "aac",  # AAC codec
+                                "-compression_level",
+                                "10",  # Maximum compression
+                            ],
+                        }
+
+                        logging.info(
+                            "Retrying with ultra-aggressive compression (4kbps, max compression)..."
+                        )
+                        with yt_dlp.YoutubeDL(ultra_aggressive_opts) as ydl:
+                            ydl.download([f"https://www.youtube.com/watch?v={v_id}"])
+
+                        # Final check
+                        if os.path.exists(audio_filepath):
+                            final_file_size = os.path.getsize(audio_filepath)
+                            final_size_mb = final_file_size / (1024 * 1024)
+                            logging.info(
+                                f"Ultra-aggressive compression result: {final_file_size:,} bytes ({final_size_mb:.2f} MB)"
+                            )
+
+                            if final_file_size <= GROQ_MAX_FILE_SIZE:
+                                logging.info(
+                                    "Ultra-aggressive compression successful! Proceeding with transcription."
+                                )
+                                file_size = final_file_size
+                                size_mb = final_size_mb
+                            else:
+                                logging.error(
+                                    f"Ultra-aggressive compression still too large ({final_size_mb:.2f} MB). Skipping transcription."
+                                )
+                                return None, "TRANSCRIPTION_FAILED", None, None
+                        else:
+                            logging.error(
+                                "Ultra-aggressive compression failed to produce file."
+                            )
+                            return None, "TRANSCRIPTION_FAILED", None, None
+                else:
+                    logging.error("Balanced compression failed to produce file.")
+                    return None, "TRANSCRIPTION_FAILED", None, None
+            else:
+                logging.error(
+                    f"PRE-FLIGHT CHECK FAILED: File size ({size_mb:.2f} MB) exceeds Groq API limit (25 MB)"
+                )
+                return None, "TRANSCRIPTION_FAILED", None, None
+
+        elif file_size > MAX_ALLOWED_SIZE:
+            logging.warning(
+                f"PRE-FLIGHT CHECK: File size ({size_mb:.2f} MB) exceeds safe threshold ({MAX_ALLOWED_SIZE / (1024 * 1024):.2f} MB)"
+            )
+            logging.warning("Proceeding with transcription - may risk API rejection")
+        else:
+            logging.info("PRE-FLIGHT CHECK PASSED: File size within safe limits")
+
+        # Check if Groq Whisper is available (not rate limited)
+        if not is_groq_whisper_available():
+            logging.warning(
+                f"Groq Whisper is rate limited for {v_id}. Skipping to fallback services..."
+            )
+
+            # Try AssemblyAI as first fallback
+            assemblyai_result = transcribe_with_assemblyai(audio_filepath, v_id)
+            if assemblyai_result:
+                full_text = assemblyai_result
+                logging.info(
+                    f"Failover successful: AssemblyAI provided transcription for {v_id}"
+                )
+            else:
+                logging.warning(
+                    f"AssemblyAI fallback failed for {v_id}. Trying final fallback..."
+                )
+                gemini_result = transcribe_with_gemini_audio(v_id)
+                if gemini_result:
+                    full_text = gemini_result
+                    logging.info(
+                        f"Final fallback successful: Gemini 3.1 Flash Lite Preview provided transcription for {v_id}"
+                    )
+                else:
+                    logging.error(
+                        f"All transcription services failed for {v_id}. No transcription available."
+                    )
+                    return "TRANSCRIPTION_FAILED", None
+
+        # Try Groq Whisper transcription
+        try:
+            logging.info(f"Attempting Groq Whisper transcription for {v_id}...")
+
+            # Log Groq input
+            logging.info("=== GROQ WHISPER API INPUT ===")
+            logging.info("Model: whisper-large-v3-turbo")
+            logging.info(f"File: {os.path.basename(audio_filepath)}")
+            logging.info(f"File size: {file_size:,} bytes ({size_mb:.2f} MB)")
+            logging.info("=== END GROQ WHISPER API INPUT ===")
+
+            with open(audio_filepath, "rb") as audio_file:
+                transcription = model_manager.client.audio.transcriptions.create(
+                    file=(audio_filepath, audio_file.read()),
+                    model="whisper-large-v3-turbo",
+                    response_format="json",
+                    language="sv",
+                    temperature=0.0,
+                )
+
+            if transcription and transcription.text:
+                full_text = transcription.text
+                # Extract actual model used from transcription response
+                actual_model = (
+                    transcription.model
+                    if hasattr(transcription, "model")
+                    else "whisper-large-v3-turbo"
+                )
+                logging.info(
+                    f"Groq Whisper transcription successful for {v_id} ({len(full_text)} characters)"
+                )
+                logging.info(f"Transcription service used: {actual_model}")
+                transcription_model = (
+                    actual_model  # Set the model and continue to AI analysis
+                )
+            else:
+                logging.error(f"Groq Whisper returned empty transcription for {v_id}")
+                return None, None, None, None
+
+        except Exception as e:
+            if "413" in str(e) or "too large" in str(e).lower():
+                logging.error(
+                    f"Audio file too large for Groq API (max 25MB). Skipping video {v_id} as transcription is required."
+                )
+                return None, "TRANSCRIPTION_FAILED", None, None
+            elif "429" in str(e) or "Too Many Requests" in str(e):
+                logging.warning(
+                    f"Groq API rate limit hit (429) for {v_id}. Trying fallback services..."
+                )
+
+                # Try AssemblyAI as first fallback
+                assemblyai_result = transcribe_with_assemblyai(audio_filepath, v_id)
+                if assemblyai_result:
+                    full_text = assemblyai_result
+                    logging.info(
+                        f"Failover successful: AssemblyAI provided transcription for {v_id}"
+                    )
+                else:
+                    logging.warning(
+                        f"AssemblyAI fallback failed for {v_id}. Trying final fallback..."
+                    )
+                    gemini_result = transcribe_with_gemini_audio(v_id)
+                    if gemini_result:
+                        full_text = gemini_result
+                        logging.info(
+                            f"Final fallback successful: Gemini 3.1 Flash Lite Preview provided transcription for {v_id}"
+                        )
+                    else:
+                        logging.error(
+                            f"All transcription services failed for {v_id}. No transcription available."
+                        )
+                        return None, "TRANSCRIPTION_FAILED", None, None
+            else:
+                logging.error(
+                    f"Transcription API error for video {v_id}. Skipping as transcription is required."
+                )
+                return None, "TRANSCRIPTION_FAILED", None, None
+
+    finally:
+        # Ensure cleanup ALWAYS happens
+        if audio_filepath and os.path.exists(audio_filepath):
+            try:
+                os.remove(audio_filepath)
+                logging.info(f"Cleaned up temporary audio file for {v_id}")
+            except Exception as cleanup_e:
+                logging.warning(f"Failed to cleanup audio file: {cleanup_e}")
+
+    # Proceed with AI analysis only if we have valid transcript text
+    if full_text and full_text != "TRANSCRIPTION_FAILED":
+        logging.info(f"Proceeding with AI analysis for {v_id}...")
+
+        # Summarize long transcripts to fit token limits
+        summarized_transcript = summarize_transcript(full_text, title)
+
+        # AI analysis via Groq (using summarized transcript to fit token limits)
+        try:
+            prompt = f"""Du är en klinisk medieanalytiker.
+                Leverera en rak och kompakt analys av videon "{title}".
+                Var objektiv men 'hård'.
+                **Instruktioner:**
+                
+                1. **Sammanfattning:** Max 2 meningar om den dominerande stämningen.
+                Nämn ENDAST like/dislike-förhållandet om likes understiger 90%, och väv då in det organiskt för att förklara diskrepans eller förstärka kritiken.
+                Om likes är 90% eller högre, ignorera siffran helt.
+                
+                **Juridisk bedömning:** Inled alltid med meningen 'Sannolikheten är [hög/låg] för förtal.'
+                Följ upp med max en mening som konkret motiverar bedömningen (t.ex. förekomst av anklagelser om brott, grova förolämpningar eller koordinerade drev).
+                
+                **KRITISKT - FÖLJ EXAKT:**
+                - ABSOLUT INGA think-blocks (```), resonemang eller tankprocesser
+                - VISA INTE DITT TÄNKANDE - ge bara slutgiltig analys
+                - Använd INGEN markdown-formatering eller specialtecken
+                - Fetmarkera ENDAST de inledande orden (**Sammanfattning:** och **Juridisk bedömning:**)
+                - Inga listor, inga rubriker, inga kursiveringar
+                - Ge svaret som REN TEXT utan några formateringselement
+                - BÖRJA DIREKT med analysen, ingen inlednin
+                
+                **Data:**
+                Transkription (AI-sammanfattning): {summarized_transcript}
+"""
+
+            # Format the prompt with actual transcript content
+            prompt = prompt.format(summarized_transcript=summarized_transcript)
+
+            # Store prompt and analysis in new structure
+
+            analysis_stats = load_analysis_stats()
+            # Use the actual channel name passed to the function
+            # channel_name = "transcript_analysis"
+
+            # Find or create video entry
+            video_entry = find_or_create_video(
+                analysis_stats, channel_name, v_id, title, publication_date
+            )
+
+            # Add transcription analysis
+            add_analysis_to_video(
+                video_entry,
+                "raw_transcript",
+                prompt,
+                full_text if full_text else "No transcription available",
+                transcription_model or "whisper-large-v3-turbo",
+            )
+
+            # Save updated stats
+            save_analysis_stats(analysis_stats)
+
+            logging.info(f"Saved transcript analysis to JSON for video {v_id}")
+
+            analysis, used_model = model_manager.try_model_with_fallback(prompt)
+
+            if analysis:
+                # clean_ai_output disabled - using raw analysis
+                cleaned_analysis = analysis
+                logging.info(
+                    f"AI analysis completed for {v_id} using model '{used_model}'."
+                )
+
+                # Update video entry with actual analysis output
+                add_analysis_to_video(
+                    video_entry, "ai_analysis", prompt, cleaned_analysis, used_model
+                )
+                save_analysis_stats(analysis_stats)
+
+                return full_text, cleaned_analysis, used_model, transcription_model
+            else:
+                logging.warning(
+                    f"AI analysis failed for {v_id} with all available models."
+                )
+                return full_text, None, None, transcription_model
+
+        except Exception as e:
+            logging.error(f"Groq analysis failed for {v_id}: {e}")
+            return full_text, None, None, transcription_model
+    else:
+        # No valid transcript, return failure
+        logging.warning(f"No valid transcript available for AI analysis for {v_id}")
+        return None, "TRANSCRIPTION_FAILED", None, transcription_model
+
+
+# --- MAIN LOGIC ---
+if __name__ == "__main__":
+    # Setup run logging with sequential numbering
+    run_log_file = setup_run_logging()
+
+    logging.info("Starting YouTube video analyzer...")
+
+    # 1. Load queue state and get next video
+    queue_state = load_queue_state()
+
+    # Load config for videos per run and fetch depth settings
+    config = load_config()
+    videos_per_run = config.get("settings", {}).get("videos_per_run", 1)
+    fetch_depth = config.get("settings", {}).get("fetch_depth", 6)
+
+    video_ids, video_to_channel = fetch_latest_videos(CHANNELS, fetch_depth)
+
+    if not video_ids:
+        logging.info("No videos in queue to process.")
+    else:
+        logging.info(
+            f"Processing {videos_per_run} video(s) from queue (depth: {fetch_depth}, pending: {len(queue_state['pending_queue'])})"
+        )
+
+        # Load analysis stats for video tracking
+        analysis_stats = load_analysis_stats()
+
+        # Get videos to process (limit by config)
+        videos_to_process = (
+            video_ids[:videos_per_run] if videos_per_run > 0 else video_ids[:1]
+        )
+        logging.info(
+            f"Will process {len(videos_to_process)} video(s): {videos_to_process}"
+        )
+
+        # Process each video (limited by config)
+        for v_id in videos_to_process:
+            # Get video data first to extract channel name
+            (
+                title,
+                channel_name,
+                ui_count,
+                comments,
+                video_stats,
+                transcript_text,
+                ai_analysis,
+                ai_model,
+                publication_date,
+                extracted_channel_name,
+                transcription_model,
+            ) = get_yt_data(v_id, deep_scrape=True)
+
+        # Handle case where video_to_channel might be empty (from queue processing)
+        if v_id in video_to_channel:
+            channel_name = video_to_channel[v_id]
+        else:
+            # Use extracted channel name from YouTube page as primary source
+            channel_name = (
+                extracted_channel_name if extracted_channel_name else UNKNOWN_CHANNEL
+            )
+
+        # If still unknown, try to find from analysis stats as final fallback
+        if channel_name == UNKNOWN_CHANNEL:
+            analysis_stats = load_analysis_stats()
+            for ch_name, ch_data in analysis_stats.items():
+                if isinstance(ch_data, dict) and "videos" in ch_data:
+                    for video in ch_data["videos"]:
+                        if isinstance(video, dict) and video.get("video_id") == v_id:
+                            channel_name = ch_name
+                            break
+                if channel_name != UNKNOWN_CHANNEL:
+                    break
+
+        if title == "MEMBERS_ONLY":
+            logging.warning(
+                f"Skipping members-only/private video {v_id} - detected during initial fetch (zero engagement but title available)"
+            )
+        else:
+            # Process the single video
+            logging.info(f"Processing video {v_id} from channel {channel_name}.")
+
+            # Check for members-only/private content detection (late detection from transcription)
+            if transcript_text == "MEMBERS_ONLY":
+                logging.warning(
+                    f"Skipping members-only/private video {v_id} - content access restricted"
+                )
+            elif title is None:
+                logging.warning(f"Skipping video {v_id} due to scraping failure.")
+            elif transcript_text == "TRANSCRIPTION_FAILED":
+                logging.warning(
+                    f"Skipping video {v_id} - transcription failed and is required for analysis"
+                )
+            else:
+                # Find or create video entry
+                video_entry = find_or_create_video(
+                    analysis_stats, channel_name, v_id, title, publication_date
+                )
+
+                # Save video metadata and check if this is a new entry or existing one
+                is_new_entry = "video_stats" not in video_entry
+
+                # Save video metadata
+                video_entry["video_stats"] = video_stats
+                video_entry["ui_comment_count"] = ui_count
+
+                # Save summarized transcript to analyses object
+                if transcript_text:
+                    # Log input transcript before summarization
+                    # logging.info("=== INPUT TRANSCRIPT FOR SUMMARIZATION ===")
+                    # logging.info(f"Video: {title}")
+                    # logging.info(f"Original length: {len(transcript_text)} characters")
+                    # logging.info(f"Content preview (first 500 chars): {transcript_text[:500]}...")
+                    # logging.info("=== END INPUT TRANSCRIPT ===")
+
+                    # Summarize transcript for storage
+                    summarized_transcript = summarize_transcript(transcript_text, title)
+                    logging.info(
+                        f"DATA CHANGE: Saved summarized transcript for {v_id} ({len(summarized_transcript)} chars, was {len(transcript_text)} chars)"
+                    )
+
+                    # Log summarized transcript content
+                    logging.info("=== SUMMARIZED TRANSCRIPT OUTPUT ===")
+                    logging.info(f"Video: {title}")
+                    logging.info(
+                        f"Content preview (first 500 chars): {summarized_transcript[:500]}..."
+                    )
+                    if len(summarized_transcript) > 500:
+                        logging.info(
+                            f"Full length: {len(summarized_transcript)} characters"
+                        )
+                    logging.info("=== END SUMMARIZED TRANSCRIPT OUTPUT ===")
+
+                    # Add transcription analysis to analyses object
+                    add_analysis_to_video(
+                        video_entry,
+                        "raw_transcript",
+                        f"Transkribera och sammanfatta video: {title}",
+                        summarized_transcript,
+                        transcription_model or "whisper-large-v3-turbo",
+                    )
+
+                    # Save state after transcription
+                    save_queue_state(queue_state)
+                else:
+                    logging.info(f"No transcript available for {v_id}")
+
+                # Save AI analysis to analyses object if available
+                if ai_analysis:
+                    logging.info(f"AI analysis available for {v_id}")
+
+                    # Add AI analysis to analyses object with actual model name
+                    ai_model_name = ai_model if ai_model else "unknown_model"
+                    add_analysis_to_video(
+                        video_entry,
+                        "ai_analysis",
+                        f"AI-analys av video: {title}",
+                        ai_analysis,
+                        ai_model_name,
+                    )
+
+                    # Save state after AI analysis
+                    save_queue_state(queue_state)
+
+                # Send Discord message if we have valid analysis data
+                if (
+                    ai_analysis
+                    and transcript_text
+                    and transcript_text != "TRANSCRIPTION_FAILED"
+                ):
+                    logging.info(f"Sending Discord message for {v_id}")
+
+                    # Send to Discord
+                    discord_success = send_discord_message(
+                        video_entry, channel_name
+                    )
+                    if discord_success:
+                        logging.info(f"Discord message sent successfully for {v_id}")
+
+                        # Mark video as completed and add timestamp
+                        video_entry["sentToDiscord"] = True
+                        video_entry["discord_posted_date"] = datetime.now().strftime(
+                            "%Y-%m-%d"
+                        )
+                        logging.info(
+                            f"VIDEO COMPLETED: {v_id} successfully posted to Discord at {video_entry['discord_posted_date']}"
+                        )
+
+                        # Mark as completed in queue state
+                        mark_video_completed(queue_state, v_id)
+
+                        # Save queue state with completion changes
+                        save_queue_state(queue_state)
+
+                        # Save updated stats with completion date
+                        save_analysis_stats(analysis_stats)
+                    else:
+                        logging.warning(f"Failed to send Discord message for {v_id}")
+                else:
+                    logging.warning(
+                        f"Skipping Discord message for {v_id} - missing required data (ai_analysis: {bool(ai_analysis)}, transcript: {bool(transcript_text and transcript_text != 'TRANSCRIPTION_FAILED')})"
+                    )
+
+                # Save final analysis stats
+                save_analysis_stats(analysis_stats)
+
+                # Rest of the code remains the same
+                logging.info(
+                    f"=== RUN COMPLETE at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ==="
+                )
+                logging.info(f"Run log saved to: {run_log_file}")
