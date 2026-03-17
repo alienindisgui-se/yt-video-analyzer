@@ -973,12 +973,142 @@ def fetch_latest_videos(channels, fetch_depth=6):
     next_video_id, updated_queue_state = _get_next_video_from_queue(queue_state)
     
     return _return_video_result(next_video_id, updated_queue_state, video_to_channel if 'video_to_channel' in locals() else {})
-
-
 def is_video_completed(video):
     """Check if video analysis is completed (posted to Discord)"""
     logging.info("=== FUNCTION START: is_video_completed ===")
     return video.get("sentToDiscord") is True
+
+
+def _extract_video_data(video_entry):
+    """Extract video ID and title from entry"""
+    logging.info("=== FUNCTION START: _extract_video_data ===")
+    v_id = video_entry.get("video_id", "")
+    title = video_entry.get("title", "Unknown Title")
+    return v_id, title
+
+def _get_video_date(video_entry):
+    """Handle video date extraction and formatting"""
+    logging.info("=== FUNCTION START: _get_video_date ===")
+    video_date = UNKNOWN_DATE
+    
+    # Use publication_date if available, otherwise fall back to analysis_date
+    if (
+        "publication_date" in video_entry
+        and video_entry["publication_date"] != UNKNOWN_DATE
+    ):
+        video_date = video_entry["publication_date"]
+    elif "analysis_date" in video_entry:
+        # Convert from YYYY-MM-DD HH:MM:SS to YYYY-MM-DD
+        try:
+            from datetime import datetime
+            date_obj = datetime.strptime(
+                video_entry["analysis_date"], "%Y-%m-%d %H:%M:%S"
+            )
+            video_date = date_obj.strftime("%Y-%m-%d")
+        except (ValueError, TypeError):
+            video_date = UNKNOWN_DATE
+    
+    return video_date
+
+def _get_channel_videos_count(channel_name):
+    """Get videos count for channel"""
+    logging.info("=== FUNCTION START: _get_channel_videos_count ===")
+    analysis_stats = load_analysis_stats()
+    channel_data = analysis_stats.get(channel_name, {"videos": []})
+    return len(channel_data["videos"])
+
+def _determine_video_word_form(videos_count):
+    """Determine singular/plural form of video word"""
+    logging.info("=== FUNCTION START: _determine_video_word_form ===")
+    return "video" if videos_count == 1 else "videor"
+
+def _add_embed_fields(embed, video_entry, channel_name, video_date, title, v_id):
+    """Add standard fields to Discord embed"""
+    logging.info("=== FUNCTION START: _add_embed_fields ===")
+    embed["fields"] = [
+        {
+            "name": PROMPTS["channel_field"],
+            "value": channel_name,
+            "inline": True,
+        },
+        {
+            "name": "Like-ratio",
+            "value": f"{video_entry.get('video_stats', {}).get('like_ratio', 0):.1f}%",
+            "inline": True,
+        },
+        {"name": "Publicerad", "value": video_date, "inline": True},
+        {
+            "name": PROMPTS["video_field"],
+            "value": f"[{title}](https://www.youtube.com/watch?v={v_id})",
+            "inline": False,
+        },
+    ]
+
+def _add_analysis_description(embed, video_entry):
+    """Add AI analysis description if available"""
+    logging.info("=== FUNCTION START: _add_analysis_description ===")
+    if "analyses" in video_entry and "ai_analysis" in video_entry["analyses"]:
+        analysis_output = video_entry["analyses"]["ai_analysis"].get("output", "")
+        if analysis_output:
+            # Truncate if too long for Discord (2000 char limit per field)
+            if len(analysis_output) > 1900:
+                analysis_output = analysis_output[:1900] + "..."
+            embed["description"] = analysis_output
+
+def _create_embed_footer(videos_count, video_word, channel_name):
+    """Create embed footer with video count"""
+    logging.info("=== FUNCTION START: _create_embed_footer ===")
+    return {
+        "text": f"{videos_count} {video_word} från @{channel_name} analyserade"
+    }
+
+def _build_discord_embed(video_entry, channel_name, video_date, title, v_id, videos_count, video_word):
+    """Build the main Discord embed structure"""
+    logging.info("=== FUNCTION START: _build_discord_embed ===")
+    embed = {
+        "title": PROMPTS["discord_title"].format(title=title),
+        "color": get_gradient_color(
+            video_entry.get("video_stats", {}).get("like_ratio", 50)
+        ),
+        "image": {"url": get_thumbnail_url(v_id)},
+    }
+    
+    # Add fields
+    _add_embed_fields(embed, video_entry, channel_name, video_date, title, v_id)
+    
+    # Add analysis description if available
+    _add_analysis_description(embed, video_entry)
+    
+    # Add footer
+    embed["footer"] = _create_embed_footer(videos_count, video_word, channel_name)
+    
+    return embed
+
+def _send_discord_request(embed):
+    """Handle the actual Discord API request"""
+    logging.info("=== FUNCTION START: _send_discord_request ===")
+    payload = {"embeds": [embed]}
+    
+    # Log the complete payload nicely formatted
+    # logging.info("=== DISCORD PAYLOAD ===")
+    # logging.info("Payload:\n" + json.dumps(payload, indent=2, ensure_ascii=False))
+    # logging.info("=== END DISCORD PAYLOAD ===")
+    
+    return requests.post(WEBHOOK, json=payload, timeout=30)
+
+def _handle_discord_response(response, video_entry):
+    """Process Discord API response"""
+    logging.info("=== FUNCTION START: _handle_discord_response ===")
+    if response.status_code == 204:
+        logging.info(
+            f"Successfully posted analysis for video {video_entry.get('video_id')} to Discord"
+        )
+        return True
+    else:
+        logging.error(
+            f"Failed to post to Discord: HTTP {response.status_code} - {response.text}"
+        )
+        return False
 
 
 def send_discord_message(video_entry, channel_name):
@@ -989,98 +1119,26 @@ def send_discord_message(video_entry, channel_name):
         return False
 
     try:
-        # Get videos count for this channel
-        analysis_stats = load_analysis_stats()
-        channel_data = analysis_stats.get(channel_name, {"videos": []})
-        videos_count = len(channel_data["videos"])
-
-        # Determine video word form
-        video_word = "video" if videos_count == 1 else "videor"
-
         # Extract video data
-        v_id = video_entry.get("video_id", "")
-        title = video_entry.get("title", "Unknown Title")
-
-        # Get video creation date and format as YYYY-MM-DD
-        video_date = UNKNOWN_DATE
-
-        # Use publication_date if available, otherwise fall back to analysis_date
-        if (
-            "publication_date" in video_entry
-            and video_entry["publication_date"] != UNKNOWN_DATE
-        ):
-            video_date = video_entry["publication_date"]
-        elif "analysis_date" in video_entry:
-            # Convert from YYYY-MM-DD HH:MM:SS to YYYY-MM-DD
-            try:
-                from datetime import datetime
-
-                date_obj = datetime.strptime(
-                    video_entry["analysis_date"], "%Y-%m-%d %H:%M:%S"
-                )
-                video_date = date_obj.strftime("%Y-%m-%d")
-            except (ValueError, TypeError):
-                video_date = UNKNOWN_DATE
-
-        # Build Discord embed with analysis results
-        embed = {
-            "title": PROMPTS["discord_title"].format(title=title),
-            "color": get_gradient_color(
-                video_entry.get("video_stats", {}).get("like_ratio", 50)
-            ),
-            "image": {"url": get_thumbnail_url(v_id)},
-            "fields": [
-                {
-                    "name": PROMPTS["channel_field"],
-                    "value": channel_name,
-                    "inline": True,
-                },
-                {
-                    "name": "Like-ratio",
-                    "value": f"{video_entry.get('video_stats', {}).get('like_ratio', 0):.1f}%",
-                    "inline": True,
-                },
-                {"name": "Publicerad", "value": video_date, "inline": True},
-                {
-                    "name": PROMPTS["video_field"],
-                    "value": f"[{title}](https://www.youtube.com/watch?v={v_id})",
-                    "inline": False,
-                },
-            ],
-            "footer": {
-                "text": f"{videos_count} {video_word} från @{channel_name} analyserade"
-            },
-        }
-
-        # Add analysis content from AI analysis if available
-        if "analyses" in video_entry and "ai_analysis" in video_entry["analyses"]:
-            analysis_output = video_entry["analyses"]["ai_analysis"].get("output", "")
-            if analysis_output:
-                # Truncate if too long for Discord (2000 char limit per field)
-                if len(analysis_output) > 1900:
-                    analysis_output = analysis_output[:1900] + "..."
-                embed["description"] = analysis_output
-
-        # Send to Discord webhook
-        payload = {"embeds": [embed]}
-
-        # Log the complete payload nicely formatted
-        # logging.info("=== DISCORD PAYLOAD ===")
-        # logging.info("Payload:\n" + json.dumps(payload, indent=2, ensure_ascii=False))
-        # logging.info("=== END DISCORD PAYLOAD ===")
-
-        response = requests.post(WEBHOOK, json=payload, timeout=30)
-
-        if response.status_code == 204:
-            logging.info(
-                f"Successfully posted analysis for video {video_entry.get('video_id')} to Discord"
-            )
-            return True
-        else:
-            logging.error(
-                f"Failed to post to Discord: HTTP {response.status_code} - {response.text}"
-            )
-            return False
+        v_id, title = _extract_video_data(video_entry)
+        
+        # Get video date
+        video_date = _get_video_date(video_entry)
+        
+        # Get channel statistics
+        videos_count = _get_channel_videos_count(channel_name)
+        video_word = _determine_video_word_form(videos_count)
+        
+        # Build Discord embed
+        embed = _build_discord_embed(
+            video_entry, channel_name, video_date, title, v_id, videos_count, video_word
+        )
+        
+        # Send to Discord
+        response = _send_discord_request(embed)
+        
+        # Handle response
+        return _handle_discord_response(response, video_entry)
 
     except Exception as e:
         logging.error(f"Error posting to Discord: {e}")
