@@ -1226,76 +1226,125 @@ def pop_next_video(state):
         state["current_processing"] = video_id
         logging.info(f"Popped video {video_id} from queue for processing")
         return video_id
-    return None
+    return False
 
 
-def load_analysis_stats():
-    """Load analysis statistics from JSON file with simple retry mechanism"""
-    logging.info("=== FUNCTION START: load_analysis_stats ===")
+def _create_fallback_stats():
+    """Create fallback stats structure"""
+    logging.info("=== FUNCTION START: _create_fallback_stats ===")
+    return {channel: {"videos": []} for channel in CHANNELS}
+
+def _load_stats_file_with_retry():
+    """Handle file loading with retry mechanism"""
+    logging.info("=== FUNCTION START: _load_stats_file_with_retry ===")
     max_retries = 3
+    
     for attempt in range(max_retries):
         try:
             with open(ANALYSIS_STATS_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 logging.info(f"Loaded analysis stats from {ANALYSIS_STATS_FILE}")
-
-                # Ensure new structure exists
-                for channel in CHANNELS:
-                    if channel not in data:
-                        logging.info(
-                            f"DATA CHANGE: Adding new channel '{channel}' to analysis stats"
-                        )
-                        data[channel] = {"videos": []}
-                    elif "videos" not in data[channel]:
-                        # Migrate old structure to new
-                        logging.warning(
-                            f"DATA REPLACEMENT: Migrating old structure for channel '{channel}'"
-                        )
-                        old_data = data[channel]
-                        old_video_count = len(old_data.get("videos", []))
-
-                        data[channel] = {"videos": []}
-                        if "videos_analyzed" in old_data:
-                            # Create a placeholder video entry for migration
-                            migrated_video = {
-                                "video_id": old_data.get("last_video_id", ""),
-                                "title": "Migrated Analysis",
-                                "analysis_date": time.time(),
-                                "analyses": {
-                                    "comment_review": {
-                                        "input_prompt": old_data.get("last_prompt", ""),
-                                        "output": "[Migrated output]",
-                                        "model": old_data.get("last_model", ""),
-                                        "timestamp": old_data.get(
-                                            "last_checked", time.time()
-                                        ),
-                                    }
-                                },
-                            }
-                            data[channel]["videos"].append(migrated_video)
-                            logging.info(
-                                f"DATA CHANGE: Added migrated video entry for channel '{channel}'"
-                            )
-
-                        logging.info(
-                            f"DATA REPLACEMENT COMPLETE: Channel '{channel}' - old entries: {old_video_count}, new structure created"
-                        )
-                return data
+                return data, None
         except FileNotFoundError:
             logging.info(
                 f"DATA CHANGE: Creating new analysis stats file at {ANALYSIS_STATS_FILE}"
             )
-            return {channel: {"videos": []} for channel in CHANNELS}
+            return _create_fallback_stats(), None
         except (json.JSONDecodeError, IOError) as e:
             if attempt == max_retries - 1:
                 logging.warning(
                     f"Failed to load analysis stats after {max_retries} attempts: {e}"
                 )
                 logging.info("DATA CHANGE: Creating fallback analysis stats structure")
-                return {channel: {"videos": []} for channel in CHANNELS}
+                return _create_fallback_stats(), "max_retries_exceeded"
             logging.debug(f"Retry {attempt + 1} for loading analysis stats: {e}")
             time.sleep(0.1 * (attempt + 1))
-    return {channel: {"videos": []} for channel in CHANNELS}
+    
+    return _create_fallback_stats(), "unknown_error"
+
+def _validate_channel_structure(data, channel):
+    """Check if channel has proper structure"""
+    logging.info("=== FUNCTION START: _validate_channel_structure ===")
+    return channel in data and "videos" in data[channel]
+
+def _ensure_channel_exists(data, channel):
+    """Ensure channel exists in data"""
+    logging.info("=== FUNCTION START: _ensure_channel_exists ===")
+    if channel not in data:
+        logging.info(
+            f"DATA CHANGE: Adding new channel '{channel}' to analysis stats"
+        )
+        data[channel] = {"videos": []}
+        return True
+    return False
+
+def _create_migrated_video_entry(old_data):
+    """Create migrated video entry"""
+    logging.info("=== FUNCTION START: _create_migrated_video_entry ===")
+    return {
+        "video_id": old_data.get("last_video_id", ""),
+        "title": "Migrated Analysis",
+        "analysis_date": time.time(),
+        "analyses": {
+            "comment_review": {
+                "input_prompt": old_data.get("last_prompt", ""),
+                "output": "[Migrated output]",
+                "model": old_data.get("last_model", ""),
+                "timestamp": old_data.get("last_checked", time.time()),
+            }
+        },
+    }
+
+def _perform_channel_migration(data, channel):
+    """Perform complete channel migration from old to new structure"""
+    logging.info("=== FUNCTION START: _perform_channel_migration ===")
+    old_data = data[channel]
+    old_video_count = len(old_data.get("videos", []))
+    
+    # Create new structure
+    data[channel] = {"videos": []}
+    
+    # Add migrated video if applicable
+    if "videos_analyzed" in old_data:
+        migrated_video = _create_migrated_video_entry(old_data)
+        data[channel]["videos"].append(migrated_video)
+        logging.info(
+            f"DATA CHANGE: Added migrated video entry for channel '{channel}'"
+        )
+    
+    logging.info(
+        f"DATA REPLACEMENT COMPLETE: Channel '{channel}' - old entries: {old_video_count}, new structure created"
+    )
+
+def _process_channel_structure(data, channel):
+    """Process and validate channel structure, migrating if needed"""
+    logging.info("=== FUNCTION START: _process_channel_structure ===")
+    
+    # Ensure channel exists
+    _ensure_channel_exists(data, channel)
+    
+    # Check if migration is needed
+    if not _validate_channel_structure(data, channel):
+        logging.warning(
+            f"DATA REPLACEMENT: Migrating old structure for channel '{channel}'"
+        )
+        _perform_channel_migration(data, channel)
+
+def _validate_all_channels(data):
+    """Validate and process all channel structures"""
+    logging.info("=== FUNCTION START: _validate_all_channels ===")
+    for channel in CHANNELS:
+        _process_channel_structure(data, channel)
+
+
+def load_analysis_stats():
+    """Load analysis statistics from JSON file with simple retry mechanism"""
+    logging.info("=== FUNCTION START: load_analysis_stats ===")
+    data, error = _load_stats_file_with_retry()
+    if error:
+        logging.error(f"Failed to load analysis stats: {error}")
+    _validate_all_channels(data)
+    return data
 
 
 def save_analysis_stats(stats):
