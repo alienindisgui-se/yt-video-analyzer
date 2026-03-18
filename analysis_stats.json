@@ -1,37 +1,6 @@
 {
   "CarlFredrikAlexanderRask": {
-    "videos": [
-      {
-        "video_id": "Wt9xF6toEac",
-        "title": "JAG HAR FÅTT SJUKA DM! - FALLET MATTIAS!",
-        "analysis_date": "2026-03-17",
-        "analysis_timestamp": 1773783279.7725403,
-        "publication_date": "2026-03-16",
-        "analyses": {
-          "raw_transcript": {
-            "input_prompt": "Transkribera och sammanfatta video: JAG HAR FÅTT SJUKA DM! - FALLET MATTIAS!",
-            "output": "Här är en sammanfattning av videotranskriptet:\n\nYouTubern diskuterar det försvunna fallet Mattias, en 17-åring från Ljungby som försvann spårlöst 2020. Trots omfattande sökinsatser med hundratals deltagare, militär, drönare och dykare, har Mattias aldrig hittats.\n\n**Huvudpunkter:**\n\n*   **Bristande tidslinje:** YouTubern ifrågasätter den officiella bilden av att Mattias var nykter och harmonisk när han lämnade festen. Han menar att det är oförenligt att en person lämnar hemmet utan skor och jacka i december om de inte varit påverkade av alkohol, droger eller drabbats av panik/psykos.\n*   **Misstänkt förnekelse:** Han kritiserar tonårsföräldrar och vittnen som han anser tonar ner förekomsten av alkohol och eventuella droger vid ungdomsfester. Han menar att sanningshalten i vittnesmålen är tveksam.\n*   **Vittnesmål om ”Johan”:** YouTubern läser upp DM-meddelanden från tittare som pekar ut en lokal person (kallad ”Johan”) med kopplingar till tidigare försvinnanden och tvivelaktig försäljning av sprit. Tittarna spekulerar i ett eventuellt samband mellan Mattias försvinnande och denna person, även om YouTubern understryker att detta bara är teorier.\n*   **Kritik mot utredningen:** YouTubern menar att polisen och utredare har varit för snabba med att avfärda vissa spår som \"pojkstreck\" istället för att följa upp all bevisning, såsom klädesplagg som hittats.\n*   **Sökandet efter svar:** Videon avslutas med en uppmaning till följare i Ljungby att dela med sig av information eller rykten. YouTubern uttrycker en frustration över att svaren verkar finnas i detaljer som omgivningen valt att ignorera, och han planerar att gräva vidare i ärendet genom att analysera förhör.",
-            "model": "whisper-large-v3-turbo",
-            "timestamp": "2026-03-17"
-          },
-          "ai_analysis": {
-            "input_prompt": "AI-analys av video: JAG HAR FÅTT SJUKA DM! - FALLET MATTIAS!",
-            "output": "**Sammanfattning:** Videon domineras av en kritisk och spekulativ ton, där skaparen ifrågasätter de officiella uppgifterna om Mattias försvinnande och misstänker att det kan ha varit ett fall av brott. Skaparen efterlyser mer information och gräver djupare i polisförhör och omständigheter som tidigare avfärdats som \"irrelevanta\".\n\nSannolikheten är hög för förtal. Skaparen lägger ut anklagelser om brott och misstänker att en lokal man (\"Johan\") kan ha varit inblandad i Mattias försvinnande, vilket kan ses som ett direkt angrepp på personens rykte och eventuella brottsbekämpande insatser.",
-            "model": "assemblyai",
-            "timestamp": "2026-03-17"
-          }
-        },
-        "video_stats": {
-          "likes": 901,
-          "dislikes": 563,
-          "views": 8717,
-          "like_ratio": 61.54371584699454
-        },
-        "ui_comment_count": 120,
-        "sentToDiscord": true,
-        "discord_posted_date": "2026-03-17"
-      }
-    ]
+    "videos": []
   },
   "ANJO1": {
     "videos": []
@@ -40,14 +9,48 @@
     "videos": []
   },
   "Skuldis": {
-    "videos": []
+    "videos": [
+      {
+        "video_id": "I6uil2F_tLM",
+        "title": "Reagerar på CHRIPPAS förhör i HOVRÄTTEN",
+        "analysis_date": "2026-03-18",
+        "analysis_timestamp": 1773818816.998829,
+        "publication_date": "2026-03-06",
+        "analyses": {
+          "raw_transcript": {
+            "input_prompt": "Transkribera och sammanfatta video: Reagerar på CHRIPPAS förhör i HOVRÄTTEN",
+            "output": "Här är en sammanfattning av YouTube-videon där innehållet i förhöret med \"Krippa\" från Göta hovrätt diskuteras och analyseras:\n\n**Huvudpunkter från förhöret:**\n\n*   **Undanhållande av information:** Krippa förklarar att han i tingsrätten vägrade namnge agenturerna han arbetat för eftersom han var rädd för kontraktsbrott, då avtalen var muntliga. Videons skapare menar att detta är en svag förklaring och ifrågasätter varför han inte bara kunde redovisa sina uppdragsgivare.\n*   **Anställning vs. Frilans:** Krippa hävdar konsekvent att han varit \"anställd\" av olika agenturer och att han litat på dem när de sagt att de sköter allt det juridiska. Han förklarar sin bristande engelska med att agenturerna tog på sig ansvaret för avtalsgenomgångar.\n*   **Omedvetenhet om illegalitet:** Krippa påstår att han inte förstod att verksamheten var olaglig vid tidpunkten för samarbetena (början av 2024). Han jämför sitt arbete med hur andra stora svenska influencers samarbetat med spelbolag och menar att han trodde att allt var i sin ordning eftersom stora profiler gjort samma sak.\n*   **Okunskap om juridiska termer:** Under förhöret uppstår komiska situationer när Krippa inte kan redogöra för grundläggande begrepp som \"koncern\" eller vilket juridiskt bolag han faktiskt varit anställd av. Han verkar sakna förståelse för skillnaden mellan en anställning och att fakturera tjänster som frilansare.\n*   **Analys:** Videons skapare är mycket kritisk mot Krippas försvar och menar att han ger en bild av att vara helt ovetande och ansvarslös. Skaparen tror inte att hovrättsförhandlingen kommer att hjälpa Krippas sak, utan snarare bekräftar hans okunskap och brist på trovärdighet, och förväntar sig att åklagarens yrkande på fängelse kvarstår.",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-18"
+          },
+          "ai_analysis": {
+            "input_prompt": "AI-analys av video: Reagerar på CHRIPPAS förhör i HOVRÄTTEN",
+            "output": "**Sammanfattning:** Videon visar en starkt negativ stämning med en tydlig kritik mot Krippas försvar i hovrätten. Det är tydligt att videons skapare inte tror på Krippas ursäkter och anser att han har varit medveten om sin verksamhets problematiska natur.\n\nSannolikheten är hög för förtal. Videons skapare anklagar Krippa för att ha ljuga om sin okunskap om juridik och sin roll i samarbetena med spelbolagen.\n\nKritiken mot Krippas argumentation är stark och pekar ut hans påståenden om okunskap som en lögn. Videons skapare menar att Krippas försvar har skadat hans sak och att åklagarens yrkande på fängelse kommer att fastställas.",
+            "model": "assemblyai",
+            "timestamp": "2026-03-18"
+          }
+        },
+        "video_stats": {
+          "likes": 810,
+          "dislikes": 11,
+          "views": 12464,
+          "like_ratio": 98.66017052375152
+        },
+        "ui_comment_count": 115,
+        "sentToDiscord": true,
+        "discord_posted_date": "2026-03-18"
+      }
+    ]
   },
   "_queue_state": {
-    "pending_queue": [
+    "pending_queue": [],
+    "completed_ids": [
+      "Wt9xF6toEac",
+      "_Yoq1-Yu6vY",
+      "QoVoasqU5Ig",
       "I6uil2F_tLM"
     ],
-    "completed_ids": [],
     "fetch_depth": 1,
-    "current_processing": "QoVoasqU5Ig"
+    "current_processing": null
   }
 }

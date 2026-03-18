@@ -857,7 +857,7 @@ def _fetch_channel_videos(page, channel, max_videos, completed_videos):
         page.evaluate("window.scrollBy(0, 1000)")
         page.wait_for_timeout(5000)
         
-        # Extract video IDs
+        # Extract video IDs with filtering
         return _extract_video_ids(page, max_videos, completed_videos, channel)
         
     except Exception as e:
@@ -970,10 +970,19 @@ def fetch_latest_videos(channels, fetch_depth=6):
             f"Queue state: {len(queue_state['pending_queue'])}, {len(queue_state['completed_ids'])} completed"
         )
 
-    # Get next video from queue
-    next_video_id, updated_queue_state = _get_next_video_from_queue(queue_state)
+    # Get all videos from queue (main loop will handle limiting)
+    videos_to_process = []
+    updated_queue_state = queue_state.copy()
     
-    return _return_video_result(next_video_id, updated_queue_state, video_to_channel if 'video_to_channel' in locals() else {})
+    # Get all videos from pending queue
+    while queue_state['pending_queue']:
+        next_video_id, updated_queue_state = _get_next_video_from_queue(updated_queue_state)
+        if next_video_id:
+            videos_to_process.append(next_video_id)
+        else:
+            break
+    
+    return videos_to_process, updated_queue_state, video_to_channel if 'video_to_channel' in locals() else {}
 def is_video_completed(video):
     """Check if video analysis is completed (posted to Discord)"""
     logging.info("=== FUNCTION START: is_video_completed ===")
@@ -1189,6 +1198,11 @@ def save_queue_state(state):
 
         # Update queue state
         analysis_stats["_queue_state"] = state
+
+        # Log what we're saving
+        logging.info(f"Saving queue state with {len(state.get('completed_ids', []))} completed IDs")
+        logging.info(f"Completed IDs: {state.get('completed_ids', [])}")
+        logging.info(f"Pending queue: {state.get('pending_queue', [])}")
 
         # Save the combined data
         save_analysis_stats(analysis_stats)
@@ -2571,72 +2585,30 @@ def get_transcript_and_analysis(
 
 
 # --- MAIN LOGIC ---
-if __name__ == "__main__":
-    # Setup run logging with sequential numbering
-    run_log_file = setup_run_logging()
-
-    logging.info("Starting YouTube video analyzer...")
-
-    # 1. Load queue state and get next video
-    queue_state = load_queue_state()
-
-    # Load config for videos per run and fetch depth settings
-    config = load_config()
-    videos_per_run = config.get("settings", {}).get("videos_per_run", 1)
-    fetch_depth = config.get("settings", {}).get("fetch_depth", 6)
-
-    video_ids, video_to_channel = fetch_latest_videos(CHANNELS, fetch_depth)
-
-    if not video_ids:
-        logging.info("No videos in queue to process.")
-    else:
-        logging.info(
-            f"Processing {videos_per_run} video(s) from queue (depth: {fetch_depth}, pending: {len(queue_state['pending_queue'])})"
-        )
-
-        # Load analysis stats for video tracking
-        analysis_stats = load_analysis_stats()
-
-        # Get videos to process (limit by config)
-        videos_to_process = (
-            video_ids[:videos_per_run] if videos_per_run > 0 else video_ids[:1]
-        )
-        logging.info(
-            f"Will process {len(videos_to_process)} video(s): {videos_to_process}"
-        )
-
-        # Process each video (limited by config)
-        for v_id in videos_to_process:
-            # Get video data first to extract channel name
-            (
-                title,
-                channel_name,
-                ui_count,
-                comments,
-                video_stats,
-                transcript_text,
-                ai_analysis,
-                ai_model,
-                publication_date,
-                extracted_channel_name,
-                transcription_model,
-            ) = get_yt_data(v_id, deep_scrape=True)
+def process_single_video(v_id):
+    """Process a single video (called from subprocess)"""
+    try:
+        # Setup minimal logging for subprocess
+        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+        
+        # Get video data first to extract channel name
+        (
+            title,
+            channel_name,
+            ui_count,
+            comments,
+            video_stats,
+            transcript_text,
+            ai_analysis,
+            ai_model,
+            publication_date,
+            extracted_channel_name,
+            transcription_model,
+        ) = get_yt_data(v_id, deep_scrape=True)
 
         # Handle case where video_to_channel might be empty (from queue processing)
-        if v_id in video_to_channel:
-            channel_name = video_to_channel[v_id]
-            logging.info(f"Using channel username from CHANNELS list: {channel_name}")
-        else:
-            # Use actual channel username from CHANNELS as primary source
-            # Find which channel this video belongs to by checking the video_to_channel mapping
-            # or fall back to extracted name only if absolutely necessary
-            channel_name = (
-                extracted_channel_name if extracted_channel_name else UNKNOWN_CHANNEL
-            )
-            logging.info(f"Using extracted channel name: {channel_name}")
-
-        # If still unknown, try to find from analysis stats as final fallback
         if channel_name == UNKNOWN_CHANNEL:
+            # Try to find channel from analysis stats
             analysis_stats = load_analysis_stats()
             for ch_name, ch_data in analysis_stats.items():
                 if isinstance(ch_data, dict) and "videos" in ch_data:
@@ -2651,6 +2623,7 @@ if __name__ == "__main__":
             logging.warning(
                 f"Skipping members-only/private video {v_id} - detected during initial fetch (zero engagement but title available)"
             )
+            return
         else:
             # Process the single video
             logging.info(f"Processing video {v_id} from channel {channel_name}.")
@@ -2660,20 +2633,23 @@ if __name__ == "__main__":
                 logging.warning(
                     f"Skipping members-only/private video {v_id} - content access restricted"
                 )
+                return
             elif title is None:
                 logging.warning(f"Skipping video {v_id} due to scraping failure.")
+                return
             elif transcript_text == "TRANSCRIPTION_FAILED":
                 logging.warning(
                     f"Skipping video {v_id} - transcription failed and is required for analysis"
                 )
+                return
             else:
                 # Find or create video entry
+                analysis_stats = load_analysis_stats()
                 video_entry = find_or_create_video(
                     analysis_stats, channel_name, v_id, title, publication_date
                 )
 
                 # Save video metadata and check if this is a new entry or existing one
-                is_new_entry = "video_stats" not in video_entry
 
                 # Save video metadata
                 video_entry["video_stats"] = video_stats
@@ -2681,13 +2657,6 @@ if __name__ == "__main__":
 
                 # Save summarized transcript to analyses object
                 if transcript_text:
-                    # Log input transcript before summarization
-                    # logging.info("=== INPUT TRANSCRIPT FOR SUMMARIZATION ===")
-                    # logging.info(f"Video: {title}")
-                    # logging.info(f"Original length: {len(transcript_text)} characters")
-                    # logging.info(f"Content preview (first 500 chars): {transcript_text[:500]}...")
-                    # logging.info("=== END INPUT TRANSCRIPT ===")
-
                     # Summarize transcript for storage
                     summarized_transcript = summarize_transcript(transcript_text, title)
                     logging.info(
@@ -2716,6 +2685,7 @@ if __name__ == "__main__":
                     )
 
                     # Save state after transcription
+                    queue_state = load_queue_state()
                     save_queue_state(queue_state)
                 else:
                     logging.info(f"No transcript available for {v_id}")
@@ -2735,6 +2705,7 @@ if __name__ == "__main__":
                     )
 
                     # Save state after AI analysis
+                    queue_state = load_queue_state()
                     save_queue_state(queue_state)
 
                 # Send Discord message if we have valid analysis data
@@ -2761,26 +2732,127 @@ if __name__ == "__main__":
                             f"VIDEO COMPLETED: {v_id} successfully posted to Discord at {video_entry['discord_posted_date']}"
                         )
 
-                        # Mark as completed in queue state
-                        mark_video_completed(queue_state, v_id)
+                        # Print success marker for subprocess detection
+                        print(f"DISCORD_SUCCESS:{v_id}")
 
-                        # Save queue state with completion changes
-                        save_queue_state(queue_state)
-
-                        # Save updated stats with completion date
-                        save_analysis_stats(analysis_stats)
                     else:
                         logging.warning(f"Failed to send Discord message for {v_id}")
                 else:
                     logging.warning(
                         f"Skipping Discord message for {v_id} - missing required data (ai_analysis: {bool(ai_analysis)}, transcript: {bool(transcript_text and transcript_text != 'TRANSCRIPTION_FAILED')})"
-                    )
-
-                # Save final analysis stats
+                    )         # Save final analysis stats
                 save_analysis_stats(analysis_stats)
 
                 # Rest of the code remains the same
                 logging.info(
-                    f"=== RUN COMPLETE at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ==="
+                    f"=== VIDEO PROCESSING COMPLETE for {v_id} at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ==="
                 )
-                logging.info(f"Run log saved to: {run_log_file}")
+                
+                # Add delay between videos to ensure proper cleanup
+                import time
+                import gc
+                time.sleep(3)
+                gc.collect()  # Force garbage collection
+
+    except Exception as e:
+        logging.error(f"Error processing single video {v_id}: {e}")
+        raise
+
+
+if __name__ == "__main__":
+    import sys
+    
+    # Check for single video mode
+    if len(sys.argv) >= 3 and sys.argv[1] == "--single-video":
+        single_video_id = sys.argv[2]
+        logging.info(f"Single video mode: processing {single_video_id}")
+        
+        # Process single video directly
+        process_single_video(single_video_id)
+        sys.exit(0)
+    
+    # Setup run logging with sequential numbering
+    run_log_file = setup_run_logging()
+
+    logging.info("Starting YouTube video analyzer...")
+
+    # 1. Load queue state and get next video
+    queue_state = load_queue_state()
+
+    # Load config for videos per run and fetch depth settings
+    config = load_config()
+    videos_per_run = config.get("settings", {}).get("videos_per_run", 1)
+    fetch_depth = config.get("settings", {}).get("fetch_depth", 6)
+
+    video_ids, queue_state, video_to_channel = fetch_latest_videos(CHANNELS, fetch_depth)
+
+    if not video_ids:
+        logging.info("No videos in queue to process.")
+    else:
+        logging.info(
+            f"Processing {videos_per_run} video(s) from queue (depth: {fetch_depth}, pending: {len(queue_state['pending_queue'])})"
+        )
+
+        # Load analysis stats for video tracking
+        analysis_stats = load_analysis_stats()
+
+        # Get videos to process (limit by config)
+        videos_to_process = video_ids[:videos_per_run] if videos_per_run > 0 else video_ids[:1]
+        logging.info(
+            f"Will process {len(videos_to_process)} video(s): {videos_to_process}"
+        )
+
+        # Process each video sequentially using subprocess to avoid Playwright conflicts
+        import subprocess
+        import sys
+        
+        processed_count = 0
+        discord_messages_sent = 0
+        
+        for v_id in videos_to_process:
+            try:
+                logging.info(f"Starting subprocess for video {v_id}")
+                
+                # Create a separate Python process for each video to avoid Playwright conflicts
+                result = subprocess.run([
+                    sys.executable, 
+                    __file__,  # This script
+                    "--single-video", 
+                    v_id
+                ], capture_output=True, text=True, timeout=1200)  # 20 minute timeout
+                
+                if result.returncode == 0:
+                    logging.info(f"Successfully processed video {v_id}")
+                    processed_count += 1
+                    
+                    # Check if Discord message was sent by looking for success marker in output
+                    if f"DISCORD_SUCCESS:{v_id}" in result.stdout:
+                        discord_messages_sent += 1
+                        logging.info(f"Discord message sent for {v_id}")
+                        
+                        # Mark as completed in the main process queue state
+                        queue_state = load_queue_state()
+                        mark_video_completed(queue_state, v_id)
+                        save_queue_state(queue_state)
+                    else:
+                        logging.warning(f"Discord message was not sent for {v_id}")
+                else:
+                    logging.error(f"Failed to process video {v_id}: {result.stderr}")
+                    
+            except subprocess.TimeoutExpired:
+                logging.error(f"Timeout processing video {v_id}")
+            except Exception as e:
+                logging.error(f"Error processing video {v_id}: {e}")
+                
+            # Brief pause between videos
+            import time
+            time.sleep(5)
+
+        logging.info(f"Processed {processed_count} out of {len(videos_to_process)} videos successfully")
+        logging.info(f"Discord messages sent: {discord_messages_sent}")
+
+        # Final run completion message
+        logging.info(
+            f"=== RUN COMPLETE at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ==="
+        )
+        logging.info(f"Run log saved to: {run_log_file}")
