@@ -1,56 +1,379 @@
 {
   "CarlFredrikAlexanderRask": {
-    "videos": []
+    "videos": [
+      {
+        "video_id": "Wt9xF6toEac",
+        "title": "JAG HAR FÅTT SJUKA DM! - FALLET MATTIAS!",
+        "channel_name": "CarlFredrikAlexanderRask",
+        "analysis_date": "2026-03-18",
+        "analysis_timestamp": 1773839626.1024897,
+        "publication_date": "2026-03-16",
+        "analyses": {
+          "raw_transcript": {
+            "input_prompt": "Transkribera och sammanfatta video: JAG HAR FÅTT SJUKA DM! - FALLET MATTIAS!",
+            "output": "Här är en sammanfattning av videon där \"Baronen\" går igenom fallet med försvunne Mattias i Ljungby:\n\n*   **Fokus på fallet:** Videon är en djupdykning i försvinnandet av 17-åriga Mattias i Ljungby (2020). Trots att visningarna på denna typ av material är lägre än för andra ämnen, betonar skaparen att tittarnas engagemang och \"watch time\" är mycket hög, vilket motiverar fortsatta efterforskningar.\n*   **Kritik mot tidslinjen:** Skaparen ifrågasätter starkt den bild som framställts om att Mattias var nykter och proper när han lämnade festen. Han menar att det är oförenligt med att Mattias kort därefter befann sig i ett tillstånd av panik, utan skor och jacka, och irrade runt i området. Han misstänker att antingen alkohol, droger eller en akut psykotisk episod måste ha spelat in.\n*   **Sökinsatsen:** Sökandet efter Mattias beskrivs som en av södra Sveriges största civila insatser med 700 volontärer från Missing People, utöver polisiära resurser. Trots den massiva uppslutningen och genomsökning av terräng och vatten (Lagan), förblev Mattias försvunnen.\n*   **Anonyma tips:** Genom DM-meddelanden från följare tas rykten upp om en lokal profil (\"Johan\") som enligt uppgift sålt smuggelalkohol och figurerat i andra försvinnanden i Ljungby (bland annat Gert Lindström). Skaparen redovisar dessa teorier men betonar att det är spekulativt.\n*   **Slutsats:** Skaparen efterfrågar mer information, specifikt förhörsprotokoll från de som var på festen, då han anser att nyckeln till svaret ligger i detaljer som tidigare avfärdats som \"oväsentliga\". Han planerar att fortsätta gräva i fallet i kommande avsnitt.",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-18"
+          },
+          "ai_analysis": {
+            "input_prompt": "AI-analys av video: JAG HAR FÅTT SJUKA DM! - FALLET MATTIAS!",
+            "output": "**Sammanfattning:** Videon domineras av en skeptisk och kritisk ton mot den officiella tidslinjen och vittnesmålen i fallet Mattias. Baronen ifrågasätter om Mattias var nykter och \"proper\" när han lämnade festen och menar att antingen var han kraftigt påverkad eller så skedde något akut som tvingade honom att fly från platsen.\n\nSannolikheten är hög för förtal. Baronen lägger ut anklagelser om brott och grova förolämpningar mot föräldrarna och vännerna till Mattias, vilket kan ses som ett förtalsförsök.",
+            "model": "assemblyai",
+            "timestamp": "2026-03-18"
+          }
+        },
+        "video_stats": {
+          "likes": 966,
+          "dislikes": 845,
+          "views": 10561,
+          "like_ratio": 53.34069574820541
+        },
+        "ui_comment_count": 133,
+        "sentToDiscord": true,
+        "discord_posted_date": "2026-03-18"
+      },
+      {
+        "video_id": "p8tsfpW_uhA",
+        "title": "LINNEAS INTERVJU HOS CLUEE!",
+        "channel_name": "CarlFredrikAlexanderRask",
+        "analysis_date": "2026-03-18",
+        "analysis_timestamp": 1773863097.0700345,
+        "publication_date": "2026-03-18",
+        "analyses": {
+          "raw_transcript": {
+            "input_prompt": "Transkribera och sammanfatta video: LINNEAS INTERVJU HOS CLUEE!",
+            "output": "Här är en sammanfattning av videon där en kanal (reaktionsvideo) granskar och kommenterar en intervju mellan Cluee och Linnea:\n\n**Huvudpunkter:**\n\n*   **Linneas situation:** Linnea intervjuas av Cluee efter att hon blivit friad från rättsliga anklagelser. Hon uttrycker lättnad och betonar att hon och partnern (Krippa) har varandra som stöd i den tuffa situationen.\n*   **Kritik mot dokumentären \"Hatet\":** Det råder delade meningar om SVT-dokumentären. Reaktionsvideon hävdar att den missar målet genom att fokusera på bagateller snarare än kärnan i konflikten, och menar att dokumentären riktar sig till en äldre målgrupp som inte förstår dynamiken i sociala medier.\n*   **Dramats ursprung:** Kanalen som reagerar påpekar att många av de rykten Linnea och Krippa anklagas för – som t.ex. misshandel och sektanklagelser – har sitt ursprung i Krippas egna uttalanden i tidigare material.\n*   **Kritik mot Cluees intervju:** Reaktionsvideon är mycket kritisk mot Cluees val att ge plattform åt Linnea. Kanalen anser att Cluee är \"snurrig\" i sina teorier, ofta försvarar problematiska profiler och att hans kanal tappar i popularitet eftersom publiken är trött på de ständiga dramatiska rubrikerna och bristen på uppföljning.\n*   **Framtidsutsikter:** Linnea hävdar att hon och Krippa vill gå vidare och starta ett nytt liv, men reaktionskanalen ställer sig skeptisk. De pekar på ett mönster där paret ständigt utlovar \"bomber\" och \"sanningar\" som aldrig materialiseras, vilket enligt kanalen skadar deras trovärdighet.\n*   **Sociala medier-klimatet:** Debatten berör hur \"drama\" har blivit en trend. Reaktionskanalen menar att drama var större förr, men att dagens uthängningar är mer destruktiva. De avfärdar också Linneas försök att framstå som \"vanlig\" och menar att hon är högst delaktig i dramat.",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-18"
+          },
+          "ai_analysis": {
+            "input_prompt": "AI-analys av video: LINNEAS INTERVJU HOS CLUEE!",
+            "output": "**Sammanfattning:** Videon domineras av en kritisk och skeptisk stämning, där reaktionskanalen ifrågasätter både Cluees och Linneas trovärdighet och handlingar. Det är tydligt att reaktionskanalen inte delar Linneas och Cluees syn på situationen.\n\nSannolikheten är hög för förtal. Reaktionskanalen anklagar Linnea och Kristoffer för att elda på konflikterna genom sina egna kanaler och för att vara delaktiga i att skapa dramat, vilket kan ses som en form av förtal.",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-18"
+          }
+        },
+        "video_stats": {
+          "likes": 292,
+          "dislikes": 60,
+          "views": 1872,
+          "like_ratio": 82.95454545454545
+        },
+        "ui_comment_count": 0,
+        "sentToDiscord": true,
+        "discord_posted_date": "2026-03-18"
+      },
+      {
+        "video_id": "Ms2Qqua_Efo",
+        "title": "CHRIPPA OCH LINNEAS DOM ÄR ETT SKÄMT!",
+        "channel_name": "CarlFredrikAlexanderRask",
+        "analysis_date": "2026-03-18",
+        "analysis_timestamp": 1773864524.9285874,
+        "publication_date": "2026-03-13",
+        "analyses": {
+          "raw_transcript": {
+            "input_prompt": "Transkribera och sammanfatta video: CHRIPPA OCH LINNEAS DOM ÄR ETT SKÄMT!",
+            "output": "Här är en sammanfattning av videons huvudpunkter:\n\n*   **Krippas dom:** Hovrätten har fastställt Kristoffer ”Krippa” Lundströms straff till ett år och tio månaders fängelse. Hans näringsförbud kvarstår, men skadeståndet till staten har sänkts avsevärt (från 900 000 till 70 000 kronor). Han blir kvar i häkte fram till dess att han kan föras till en anstalt.\n*   **Linnea frikänns:** Linnea Lundström har frikänts helt från de anklagelser hon stod åtalad för, vilket framställs som en lättnad för paret.\n*   **Graviditetsfrågeställningar:** Videons upphovsperson ifrågasätter starkt parets berättelse kring den nuvarande graviditeten. Särskilt märkligt anses beslutet att göra en abort i december för att sedan omedelbart bli gravid igen, trots att de enligt tidigare uppgifter inte ville ha fler barn.\n*   **Misstro mot Linnea:** Upphovspersonen uttrycker en djup skepsis mot Linnea, baserat på hennes historik av motstridiga uttalanden och parets tendens att göra allt i sina liv offentligt. Det riktas även misstankar mot äktheten i de brev som påstås komma från Krippa inifrån häktet, då handstilen upplevs som misstänkt lik Linneas egen.\n*   **Framtiden:** Upphovspersonen hoppas att \"Krippa-dramat\" nu når sitt slut i och med fängelsedomen. Fokus framåt för upphovspersonen kommer att ligga på andra projekt, bland annat det så kallade \"Mattias-fallet\", då intresset för att bevaka Krippas liv förväntas minska när han sitter på anstalt.",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-18"
+          },
+          "ai_analysis": {
+            "input_prompt": "AI-analys av video: CHRIPPA OCH LINNEAS DOM ÄR ETT SKÄMT!",
+            "output": "**Sammanfattning:** Videon domineras av en skeptisk och kritisk stämning mot Linnea Lundström och hennes relation till Krippa. Skaparen ifrågasätter hennes graviditet, trovärdighet och handstil, vilket skapar en negativ och misstänksam atmosfär.\n\nSannolikheten är hög för förtal. Skaparen anklagar Linnea för att ha manipulerat sin graviditet och ifrågasätter hennes trovärdighet genom att jämföra handstilen på breven med hennes egen. Denna typ av anklagelser kan ses som ett uttryck för förtal.",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-18"
+          }
+        },
+        "video_stats": {
+          "likes": 1359,
+          "dislikes": 1528,
+          "views": 17663,
+          "like_ratio": 47.073086248701074
+        },
+        "ui_comment_count": 0,
+        "sentToDiscord": true,
+        "discord_posted_date": "2026-03-18"
+      }
+    ]
   },
   "ANJO1": {
-    "videos": []
+    "videos": [
+      {
+        "video_id": "_Yoq1-Yu6vY",
+        "title": "DET SISTA SOM SKREVS I CHATTEN! - CHATTEN Del 30",
+        "channel_name": "ANJO1",
+        "analysis_date": "2026-03-18",
+        "analysis_timestamp": 1773839986.969849,
+        "publication_date": "2026-03-13",
+        "analyses": {
+          "raw_transcript": {
+            "input_prompt": "Transkribera och sammanfatta video: DET SISTA SOM SKREVS I CHATTEN! - CHATTEN Del 30",
+            "output": "Här är en sammanfattning av YouTube-videon ”DET SISTA SOM SKREVS I CHATTEN! - CHATTEN Del 30”:\n\n**Huvudpunkter:**\n\n*   **Avslutning på serien:** Detta är den 30:e och sista delen i en serie där vloggaren Anjo har gått igenom en omfattande privat chattlogg från en grupp bestående av bland andra Joakim Lundell, Krippa (Kristoffer) och andra influencers. Syftet har varit att \"visa sanningen\" bakom ett utdraget offentligt drama.\n*   **Kritik mot SVT:** Anjo riktar återkommande och skarp kritik mot SVT och journalister som Bo-Göran Bodin och Linnéa Buren. Han menar att deras dokumentär *Hatet* vinklat händelseförloppet genom att framställa Krippa och hans flickvän Linnéa som oskyldiga offer, samt att de ignorerat den kontext som chatten ger.\n*   **Krippas ekonomi och beteende:** Chatten avslöjar anklagelser om att Krippa levt på kredit, skuldsatt sig hos olika personer och att han (enligt chatten) ska ha begått skattebrott. Anjo försvarar sin \"exponering\" av Krippa med att den var en direkt respons på att han själv blivit falskt anklagad för skattebrott av Krippa.\n*   **Internt kaos:** Chatten visar även konflikter internt mellan deltagarna, där det förekommer hot om indrivning av skulder, anklagelser om otrohet, och frustration över att privat information (t.ex. en dagbok) läckt ut. \n*   **Slutsats:** Anjo menar att serien nu har bevisat att många av de påståenden som cirkulerat under två års tid har en grund i den privata chatten. Han anser att sanningen nu är \"svart på vitt\" och att ingen längre kan förvränga händelseförloppet utan att bli motbevisad av materialet som presenterats i serien.",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-18"
+          },
+          "ai_analysis": {
+            "input_prompt": "AI-analys av video: DET SISTA SOM SKREVS I CHATTEN! - CHATTEN Del 30",
+            "output": "**Sammanfattning:** Videon \"DET SISTA SOM SKREVS I CHATTEN! - CHATTEN Del 30\" präglas av en intensiv och konfliktfylld stämning, där Anjo försvarar sin handling och kritiserar SVT och journalisterna bakom dokumentären *Hatet*. Den dominerande stämningen är en känsla av ilska och frustration, som tydligt framgår av Anjos ton och språkbruk.\n\n**Juridisk bedömning:** Sannolikheten är hög för förtal. Anjo riktar skarp kritik mot SVT och journalisterna, och anklagar dem för att ha vinklat dokumentären för att framställa Krippa och Linnéa som oskyldiga offer, trots att de enligt Anjo var djupt delaktiga i dramat. Denna typ av anklagelser kan betraktas som förtal, särskilt om de inte stöds av bevis.",
+            "model": "assemblyai",
+            "timestamp": "2026-03-18"
+          }
+        },
+        "video_stats": {
+          "likes": 3259,
+          "dislikes": 302,
+          "views": 45954,
+          "like_ratio": 91.51923616961528
+        },
+        "ui_comment_count": 512,
+        "sentToDiscord": true,
+        "discord_posted_date": "2026-03-18"
+      },
+      {
+        "video_id": "vRggtmBKLuY",
+        "title": "Chrippa friar till Linnea på klubben - CHATTEN Del 29",
+        "channel_name": "ANJO1",
+        "analysis_date": "2026-03-18",
+        "analysis_timestamp": 1773863336.235515,
+        "publication_date": "2026-03-12",
+        "analyses": {
+          "raw_transcript": {
+            "input_prompt": "Transkribera och sammanfatta video: Chrippa friar till Linnea på klubben - CHATTEN Del 29",
+            "output": "Här är en sammanfattning av avsnitt 29 i serien om chatten:\n\n**Övergripande situation och tittartapp**\nChrippa inleder med att konstatera att tittarsiffrorna och antalet prenumeranter sjunker. Han reflekterar över att många verkar ha tröttnat på \"chatten-formatet\", men han planerar att fortsätta tills chatten är slut, varpå han planerar att satsa på vloggar och mer rörligt material.\n\n**Drama och anklagelser**\nHuvudfokus för avsnittet är den eskalerande konflikten mellan Chrippa, Linnea, Jocke och de andra inblandade:\n*   **Telefonbråket:** Jocke försöker få tillbaka sin mobil som Chrippa vägrar lämna ifrån sig. Det diskuteras taktik för att få Chrippa att flytta från lägenheten, inklusive att Jocke skämtsamt överväger att flytta in med en tältsäng.\n*   **Linneas agerande:** Det framkommer anklagelser om att Linnea köper följare och försöker smutskasta Jocke med gamla klipp. Jocke och de andra diskuterar hur Linneas mamma fungerar som en informationskälla (\"golare\") för Jocke, vilket ger dem insyn i Linneas och Chrippas planer.\n*   **Frieriet:** Ett avsnittets stora samtalsämnen är att Chrippa friat till Linnea på en nattklubb. Detta beskrivs av Jocke och de andra som \"cringe\", pinsamt och ett desperat försök att hålla sig relevanta, särskilt med tanke på att Chrippa vid tillfället var involverad i en infekterad familjekonflikt.\n*   **Droganklagelser:** Det visas bilder på Chrippa och Linnea i miljöer där misstänkt narkotikamissbruk sker. Jocke och de andra är djupt upprörda över att Chrippa planerar att hämta sin dotter Chloe direkt efter att ha varit ute och festat.\n\n**Slutsats**\nAvsnittet präglas av en känsla av att situationen har spårat ur totalt. Jocke betonar att han är färdig med att försöka hjälpa Chrippa och att fokus nu ligger helt på att skydda Chloe från den destruktiva miljön.",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-18"
+          },
+          "ai_analysis": {
+            "input_prompt": "AI-analys av video: Chrippa friar till Linnea på klubben - CHATTEN Del 29",
+            "output": "**Sammanfattning:** Videon domineras av en negativ och konfliktfylld stämning, där deltagarna i chatten uttrycker stark avsmak och frustration över Chrippas beteende och handlingar. Den stora chocken i chatten är Chrippas frieri till Linnea, som möts med stark kritik och ifrågasättande av hans omdöme.\n\nSannolikheten är hög för förtal. Videon innehåller anklagelser om brott, grova förolämpningar och koordinerade drev mot Chrippa, vilket tyder på en medveten och systematisk förtalskampanj.",
+            "model": "assemblyai",
+            "timestamp": "2026-03-18"
+          }
+        },
+        "video_stats": {
+          "likes": 2242,
+          "dislikes": 73,
+          "views": 37237,
+          "like_ratio": 96.84665226781858
+        },
+        "ui_comment_count": 141,
+        "sentToDiscord": true,
+        "discord_posted_date": "2026-03-18"
+      },
+      {
+        "video_id": "NzN_moMiupI",
+        "title": "Chrippa startar KRIG mot oss! - CHATTEN Del 28",
+        "channel_name": "ANJO1",
+        "analysis_date": "2026-03-18",
+        "analysis_timestamp": 1773864715.5602124,
+        "publication_date": "2026-03-09",
+        "analyses": {
+          "raw_transcript": {
+            "input_prompt": "Transkribera och sammanfatta video: Chrippa startar KRIG mot oss! - CHATTEN Del 28",
+            "output": "Här är en sammanfattning av YouTube-videon ”Chrippa startar KRIG mot oss! - CHATTEN Del 28”:\n\n**Konflikten trappas upp**\nVideon fokuserar på den pågående och infekterade konflikten mellan Jocke, Anjo (som läser upp chatten), Jacke och Krippa (Chrippa) med flickvännen Linnéa. Efter att socialtjänsten och polisen hämtat Chloe, har Krippa inlett en aggressiv kampanj på sociala medier för att rentvå sig själv och Linnéa, samtidigt som han smutskastar övriga familjemedlemmar och Anjo.\n\n**Viktiga punkter:**\n*   **Krippas anklagelser:** Krippa hävdar att Jocke är skyldig honom pengar (120 000 kr) och anklagar Anjo för att ha hackat hans telefon och begått hemfridsbrott. Jocke och Anjo tillbakavisar detta som lögner och menar att det är Krippa som är desperat efter pengar för att finansiera sin livsstil med Linnéa.\n*   **Linnéas roll:** Linnéa framställs som den som styr Krippa. Hennes beteende på sociala medier beskrivs som irrationellt och hon anklagas för att provocera familjen för att få uppmärksamhet.\n*   **Hemfridsbrott och nycklar:** Det råder diskussioner om en lägenhet som Jocke står på, där Krippa och Linnéa vistats utan tillåtelse. Anjo och Jocke menar att de har bevis för att Linnéa har befunnit sig där, vilket går emot Krippas uttalanden.\n*   **Socialtjänsten och Chloe:** Familjen är enad om att Krippa inte är lämplig som vårdnadshavare för Chloe, med hänvisning till hans aggressivitet, drogrykten och instabilitet.\n*   **Förlorat förtroende:** Krippa tappar snabbt följare på sina sociala kanaler, vilket Anjo och Jocke tolkar som att allmänheten börjar genomskåda hans narrativ.\n\nVideon avslutas med en känsla av att situationen är nära en \"katastrof\" när chatten närmar sig sitt slut i slutet av februari. Anjo understryker att de anser sig själva vara maktlösa mot de narrativ som sprids i media.",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-18"
+          },
+          "ai_analysis": {
+            "input_prompt": "AI-analys av video: Chrippa startar KRIG mot oss! - CHATTEN Del 28",
+            "output": "**Sammanfattning:** Videon \"Chrippa startar KRIG mot oss! - CHATTEN Del 28\" präglas av en extremt hätsk och konfliktfylld stämning, där deltagarna anklagar Chrippa för att ljuger och sveka dem. Stämningen är sådan att deltagarna ifrågasätter Chrippas lämplighet som vårdnadshavare för sin dotter.\n\nSiffran 90% för likes ignoreras eftersom den understiger 90%. \n\n**Juridisk bedömning:** Sannolikheten är hög för förtal. Detta beror på att deltagarna anklagar Chrippa för att ljuger och sveka dem, vilket kan ses som grova förolämpningar och anklagelser om brott.",
+            "model": "assemblyai",
+            "timestamp": "2026-03-18"
+          }
+        },
+        "video_stats": {
+          "likes": 2012,
+          "dislikes": 43,
+          "views": 40963,
+          "like_ratio": 97.90754257907543
+        },
+        "ui_comment_count": 107,
+        "sentToDiscord": true,
+        "discord_posted_date": "2026-03-18"
+      }
+    ]
   },
   "MotVikten": {
-    "videos": []
+    "videos": [
+      {
+        "video_id": "QoVoasqU5Ig",
+        "title": "CHATTEN SOM INGEN VÅGAT LÄCKA ... ÄN!",
+        "channel_name": "MotVikten",
+        "analysis_date": "2026-03-18",
+        "analysis_timestamp": 1773840211.0068884,
+        "publication_date": "2026-03-16",
+        "analyses": {
+          "raw_transcript": {
+            "input_prompt": "Transkribera och sammanfatta video: CHATTEN SOM INGEN VÅGAT LÄCKA ... ÄN!",
+            "output": "Här är en sammanfattning av innehållet i videotranskriptet:\n\n**Kärnan i videon**\nVideoägaren hävdar att hen kommit över en hemlig chattlogg som involverar flera kända svenska profiler (bland annat Joakim Lundell, Anjo, Daniel, Jacke, Gustav och Krippa). Syftet med videon är att fungera som \"visselblåsare\" och avslöja information som de inblandade parterna enligt uppgift desperat vill hålla hemlig.\n\n**Huvudpunkter i chatten:**\n* **Förvirring och kaos:** Chatten präglas av en rörig dialog där deltagarna ofta missförstår varandra, talar om ovidkommande saker (som Dubai, Batman-filmer och siamesiska katter) och agerar impulsivt. \n* **Ubåts-dramat:** Den centrala och mest bisarra punkten i chatten är påståendet att Krippa har köpt en militär ubåt i Karlskrona för att attackera Rask i Trosa. Deltagarna diskuterar huruvida detta är ett skämt eller en verklig fara, och överväger att koppla in militärpolisen för att stoppa honom.\n* **Inkonsekvens:** Det är svårt att avgöra vad som är allvar och vad som är ironi/skämt i chatten. Vid flera tillfällen dementerar eller bekräftar deltagarna varandra i en cirkulär logik som gör det omöjligt för läsaren att dra en logisk slutsats om vad som faktiskt händer.\n* **Avslutning:** Videons skapare avbryter läsningen av chatten vid en dramatisk punkt för att bygga upp spänning. Hen ställer ett krav på 2 000 likes för att publicera nästa del, där hen lovar att det \"riktiga avslöjandet\" och de största konsekvenserna kommer att framgå.\n\n**Slutsats:**\nVideon framstår som en form av \"klickbete\" där en rörig och till synes påhittad konversation presenteras som ett \"hemligt avslöjande\" för att locka tittare till framtida videor.",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-18"
+          },
+          "ai_analysis": {
+            "input_prompt": "AI-analys av video: CHATTEN SOM INGEN VÅGAT LÄCKA ... ÄN!",
+            "output": "**Sammanfattning:** Videon dominerades av en dramatiserad och skapande ton, med en grupp kända Youtube-profiler som diskuterar en absurd och osannolik historia om en ubåtattack. Den överväldigande majoriteten av kommentarerna tycks vara positiva, men det finns en del kritiska röster som ifrågasätter sanningshalten i videon.\n\nSannolikheten är låg för förtal. Videon innehåller anklagelser om brott, men dessa är så absurda och osannolika att de inte kan ses som allvarliga. Istället framstår videon som en dramatiserad och skapande berättelse som syftar till att skapa en narrativ om en djup konflikt och en förestående \"Youtube-kollaps\".",
+            "model": "assemblyai",
+            "timestamp": "2026-03-18"
+          }
+        },
+        "video_stats": {
+          "likes": 1198,
+          "dislikes": 54,
+          "views": 9226,
+          "like_ratio": 95.68690095846645
+        },
+        "ui_comment_count": 302,
+        "sentToDiscord": true,
+        "discord_posted_date": "2026-03-18"
+      },
+      {
+        "video_id": "umALNO9Arks",
+        "title": "SPELAR BINGO MED CHRIPPA I HOVRÄTTEN",
+        "channel_name": "MotVikten",
+        "analysis_date": "2026-03-18",
+        "analysis_timestamp": 1773863624.03582,
+        "publication_date": "2026-03-10",
+        "analyses": {
+          "raw_transcript": {
+            "input_prompt": "Transkribera och sammanfatta video: SPELAR BINGO MED CHRIPPA I HOVRÄTTEN",
+            "output": "Här är en sammanfattning av videons innehåll:\n\nVideon består av en reaktionsvideo där skaparen går igenom ett tilläggsförhör med \"Krippa\" i hovrätten gällande åtal om olovlig spelverksamhet och främjande av olaglig verksamhet. Skaparen använder ett bingospel baserat på nyckelord (t.ex. \"agentur\", \"samarbete\", \"faktura\") som Krippa förväntas säga under förhöret.\n\n**Huvudpunkter:**\n\n*   **Krippas förklaring:** Krippa försvarar sig med att han agerat utifrån muntliga avtal med utländska agenturer. Han hävdar att han inte vågade namnge dessa agenturer tidigare på grund av rädsla för \"kontraktsbrott\".\n*   **Strategi i hovrätten:** Krippa erkänner att han ljög i tingsrätten, men menar att detta var nödvändigt för att inte bryta mot sina avtal. Han hävdar att han inte förstod att verksamheten var olaglig och att han litade på agenturerna eftersom de även samarbetade med andra stora influencers (t.ex. \"Sampe V2\").\n*   **Ansvarsfrågan:** Krippa insisterar på att han bara varit anställd för att streama och att agenturerna skött allt det administrativa, inklusive skatter och licenser. Han avfärdar ansvar genom att peka på att ingen myndighet kontaktat honom tidigare.\n*   **Kritik från skaparen:** Videons skapare är starkt kritisk till Krippas resonemang. Skaparen menar att Krippa skapar en egen verklighet där han vägrar ta eget ansvar för sina handlingar. Skaparen ifrågasätter varför Krippa fortsatte samarbeten trots att han delgivits misstanke om brott, och drar paralleller till att \"köra 200 km/h på en 70-väg och skylla på att polisen inte stoppade en tillräckligt snabbt\".\n*   **Avslutning:** Videon avslutas med spekulationer om det kommande domslutet och en uppmaning till tittarna att gissa om straffet blir hårdare eller lättare.",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-18"
+          },
+          "ai_analysis": {
+            "input_prompt": "AI-analys av video: SPELAR BINGO MED CHRIPPA I HOVRÄTTEN",
+            "output": "**Sammanfattning:** Videon domineras av en starkt kritisk och ironisk stämning, där kreatören ifrågasätter Krippas försvar och hävdar att han skapar sin egen verklighet genom att ignorera varningar. Kreatörens reaktion är tydligt negativ och han ifrågasätter Krippas trovärdighet.\n\nSannolikheten är låg för förtal. Krippas försvar innehåller anklagelser om brott och han hävdar att han var rädd för kontraktsbrott, vilket tyder på att han är medveten om att hans handlingar var olagliga.",
+            "model": "assemblyai",
+            "timestamp": "2026-03-18"
+          }
+        },
+        "video_stats": {
+          "likes": 960,
+          "dislikes": 7,
+          "views": 11903,
+          "like_ratio": 99.27611168562565
+        },
+        "ui_comment_count": 0,
+        "sentToDiscord": true,
+        "discord_posted_date": "2026-03-18"
+      },
+      {
+        "video_id": "RpdGIyevgEY",
+        "title": "FRUKOSTBORDET - SkyDaddy hatar Judo!  ✅ Udda att vara nykter ✅ Felicia bojkottar Eurovison? ✅ m.m",
+        "channel_name": "MotVikten",
+        "analysis_date": "2026-03-18",
+        "analysis_timestamp": 1773864849.7103252,
+        "publication_date": "2026-03-09",
+        "analyses": {
+          "raw_transcript": {
+            "input_prompt": "Transkribera och sammanfatta video: FRUKOSTBORDET - SkyDaddy hatar Judo!  ✅ Udda att vara nykter ✅ Felicia bojkottar Eurovison? ✅ m.m",
+            "output": "Here is a summary of the video transcript:\n\nThe YouTuber opens by explaining his recent absence from the platform, attributing it to a need for a break and a shift in focus toward real-life projects and enjoying the spring weather, rather than a lack of financial motivation.\n\n**Key points:**\n\n*   **Future Content:** The creator confirms several upcoming projects, including a reaction video to \"Krippa’s\" recent court case (which he mentions is highly requested), an interview with a therapist from the site *Dumpen*, a series filmed at a pub, and other surprise collaborations.\n*   **Life Updates & Opinions:**\n    *   **Health:** He mentions ongoing foot pain but maintains his running routine; he plans to seek medical advice for potential rehab.\n    *   **Music/Eurovision:** He shares his thoughts on the recent Melodifestivalen, criticizing the trend of repetitive, \"toneless\" music that relies on recognizable basslines to gain popularity.\n    *   **World Events:** He expresses frustration with current global instability and criticizes those who protest in support of restrictive regimes. He mocks the media coverage of celebrities (like E-Type and Dr. Alban) being \"stuck\" abroad, suggesting the media often sensationalizes these stories.\n    *   **Religion & Tradition:** He discusses a case involving a Judo club being investigated by the Discrimination Ombudsman for requiring students to bow. He defends the tradition as a sign of respect, arguing that religious beliefs should not supersede the rules and customs of sports clubs.\n*   **Financials:** He briefly touches on the current state of the stock market, noting a drop in his portfolio, and reflects on the irony of public figures debating political power dynamics when the goal is inherently about maintaining influence.",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-18"
+          },
+          "ai_analysis": {
+            "input_prompt": "AI-analys av video: FRUKOSTBORDET - SkyDaddy hatar Judo!  ✅ Udda att vara nykter ✅ Felicia bojkottar Eurovison? ✅ m.m",
+            "output": "**Sammanfattning:** Videon domineras av en positiv och humoristisk stämning, med YouTubern som delar sina tankar och åsikter om olika ämnen. Han verkar vara i gott humör och delar med sig av sina projekt och planer.\n\nSannolikheten är låg för förtal. Videon innehåller inga anklagelser om brott eller grova förolämpningar, utan snarare en kritisk och ironisk ton mot vissa samhällsfrågor och media.",
+            "model": "assemblyai",
+            "timestamp": "2026-03-18"
+          }
+        },
+        "video_stats": {
+          "likes": 264,
+          "dislikes": 7,
+          "views": 1605,
+          "like_ratio": 97.41697416974169
+        },
+        "ui_comment_count": 101,
+        "sentToDiscord": true,
+        "discord_posted_date": "2026-03-18"
+      }
+    ]
   },
   "Skuldis": {
     "videos": [
       {
         "video_id": "I6uil2F_tLM",
         "title": "Reagerar på CHRIPPAS förhör i HOVRÄTTEN",
+        "channel_name": "Skuldis",
         "analysis_date": "2026-03-18",
-        "analysis_timestamp": 1773818816.998829,
+        "analysis_timestamp": 1773840312.4021344,
         "publication_date": "2026-03-06",
         "analyses": {
-          "raw_transcript": {
-            "input_prompt": "Transkribera och sammanfatta video: Reagerar på CHRIPPAS förhör i HOVRÄTTEN",
-            "output": "Här är en sammanfattning av YouTube-videon där innehållet i förhöret med \"Krippa\" från Göta hovrätt diskuteras och analyseras:\n\n**Huvudpunkter från förhöret:**\n\n*   **Undanhållande av information:** Krippa förklarar att han i tingsrätten vägrade namnge agenturerna han arbetat för eftersom han var rädd för kontraktsbrott, då avtalen var muntliga. Videons skapare menar att detta är en svag förklaring och ifrågasätter varför han inte bara kunde redovisa sina uppdragsgivare.\n*   **Anställning vs. Frilans:** Krippa hävdar konsekvent att han varit \"anställd\" av olika agenturer och att han litat på dem när de sagt att de sköter allt det juridiska. Han förklarar sin bristande engelska med att agenturerna tog på sig ansvaret för avtalsgenomgångar.\n*   **Omedvetenhet om illegalitet:** Krippa påstår att han inte förstod att verksamheten var olaglig vid tidpunkten för samarbetena (början av 2024). Han jämför sitt arbete med hur andra stora svenska influencers samarbetat med spelbolag och menar att han trodde att allt var i sin ordning eftersom stora profiler gjort samma sak.\n*   **Okunskap om juridiska termer:** Under förhöret uppstår komiska situationer när Krippa inte kan redogöra för grundläggande begrepp som \"koncern\" eller vilket juridiskt bolag han faktiskt varit anställd av. Han verkar sakna förståelse för skillnaden mellan en anställning och att fakturera tjänster som frilansare.\n*   **Analys:** Videons skapare är mycket kritisk mot Krippas försvar och menar att han ger en bild av att vara helt ovetande och ansvarslös. Skaparen tror inte att hovrättsförhandlingen kommer att hjälpa Krippas sak, utan snarare bekräftar hans okunskap och brist på trovärdighet, och förväntar sig att åklagarens yrkande på fängelse kvarstår.",
+          "ai_analysis": {
+            "input_prompt": "AI-analys av video: Reagerar på CHRIPPAS förhör i HOVRÄTTEN",
+            "output": "**Sammanfattning:** Videon domineras av en kritisk och ironisk ton, där reageraren hårdnackat ifrågasätter Krippas försvar i hovrätten. Den dominerande stämningen är en känsla av förvåning och frustration över Krippas uppträdande.\n\n**Juridisk bedömning:** Sannolikheten är hög för förtal. Reageraren anklagar Krippa för att ha ignorerat varningssignaler och att hans försvar i hovrätten snarare har skadat än hjälpt honom, vilket tyder på en medveten och avsiktlig förtalshandling.",
             "model": "whisper-large-v3-turbo",
             "timestamp": "2026-03-18"
           },
-          "ai_analysis": {
-            "input_prompt": "AI-analys av video: Reagerar på CHRIPPAS förhör i HOVRÄTTEN",
-            "output": "**Sammanfattning:** Videon visar en starkt negativ stämning med en tydlig kritik mot Krippas försvar i hovrätten. Det är tydligt att videons skapare inte tror på Krippas ursäkter och anser att han har varit medveten om sin verksamhets problematiska natur.\n\nSannolikheten är hög för förtal. Videons skapare anklagar Krippa för att ha ljuga om sin okunskap om juridik och sin roll i samarbetena med spelbolagen.\n\nKritiken mot Krippas argumentation är stark och pekar ut hans påståenden om okunskap som en lögn. Videons skapare menar att Krippas försvar har skadat hans sak och att åklagarens yrkande på fängelse kommer att fastställas.",
-            "model": "assemblyai",
+          "raw_transcript": {
+            "input_prompt": "Transkribera och sammanfatta video: Reagerar på CHRIPPAS förhör i HOVRÄTTEN",
+            "output": "Här är en sammanfattning av videon där kreatören reagerar på \"Krippas\" förhör i Göta hovrätt:\n\n*   **Undanhållande av information:** Krippa förklarar att han tidigare undvikit att nämna sina agenturer i tingsrätten för att han fruktade rättsliga konsekvenser för kontraktsbrott, då han haft muntliga avtal med dem.\n*   **Anställning vs. Fakturering:** Krippa vidhåller att han varit anställd av olika agenturer och hävdar att han inte behövt granska avtalen noga eftersom de skött allt åt honom. Han försvarar sig med att han har dålig engelska och litade på att allt var i sin ordning eftersom andra stora influencers samarbetade med samma aktörer.\n*   **Bristande kunskap:** Videokreatören kritiserar Krippa för att han framstår som okunnig om grundläggande affärstermer (som vad en \"koncern\" innebär) och för att han jämför sina agentursamarbeten med en vanlig anställning på Toyota. Det påpekas att det är motsägelsefullt att kalla sig anställd samtidigt som han fakturerar för sina tjänster.\n*   **Påstådd okunskap om lagligheten:** Krippa hävdar att han inte visste att hans verksamhet var olaglig och menar att ingen i hans chattar påpekat att det skulle vara förbjudet. Detta avfärdas av videokreatören som en lögn, då många följare enligt denne uppmärksammade honom på problematiken.\n*   **Slutsats:** Videokreatören anser att förhöret snarare skadar än hjälper Krippa. Krippas försvar uppfattas som själv motsägelsefullt och naivt, och kreatören uttrycker förväntan om att hovrätten kommer att gå på åklagarens linje och fastställa ett fängelsestraff.",
+            "model": "whisper-large-v3-turbo",
             "timestamp": "2026-03-18"
           }
         },
         "video_stats": {
           "likes": 810,
           "dislikes": 11,
-          "views": 12464,
+          "views": 12493,
           "like_ratio": 98.66017052375152
         },
-        "ui_comment_count": 115,
+        "ui_comment_count": 0,
+        "sentToDiscord": true,
+        "discord_posted_date": "2026-03-18"
+      },
+      {
+        "video_id": "Z7_46jzcgkk",
+        "title": "USA bombar Iran – Jag köper fler aktier",
+        "channel_name": "Skuldis",
+        "analysis_date": "2026-03-18",
+        "analysis_timestamp": 1773863714.8992543,
+        "publication_date": "2026-03-05",
+        "analyses": {
+          "raw_transcript": {
+            "input_prompt": "Transkribera och sammanfatta video: USA bombar Iran – Jag köper fler aktier",
+            "output": "Här är en sammanfattning av videons huvudpunkter:\n\n*   **Behåll lugnet vid börsoro:** När omvärldshändelser (som krig eller kriser) skapar röda siffror på börsen tenderar många att få panik och sälja. Talaren menar att detta är ett misstag och att man istället bör behålla huvudet kallt.\n*   **Se röda siffror som en möjlighet:** Röda siffror innebär inte nödvändigtvis att företagen går dåligt; ofta är det bara ett uttryck för marknadens rädsla. För en långsiktig investerare är detta ett ypperligt läge att köpa aktier \"på rea\".\n*   **Fokusera på företagets kärna:** Istället för att försöka tajma marknaden eller göra komplicerade tekniska analyser, rekommenderar talaren att man investerar i företag och produkter man faktiskt tror på och som har en långsiktig efterfrågan.\n*   **Långsiktighet är nyckeln:** Historiskt sett har börsen återhämtat sig från alla tidigare kriser. Om din tidshorisont är 10–30 år spelar tillfälliga kursfall ingen roll – då bör du snarare öka ditt sparande.\n*   **Spara oavsett belopp:** Allt sparande är bra sparande, oavsett om det är 50 kronor eller flera tusen. För den som inte vill välja enskilda aktier är fonder ett bra alternativ.\n*   **Krisberedskap i hemmet:** Utöver aktiesparande betonar talaren vikten av att ha en god hemberedskap (t.ex. kontanter, mat och campingutrustning) för att vara förberedd på oförutsedda kriser.\n\n**Sammanfattningsvis:** Låt dig inte styras av rädsla vid börsoro. Se det som ett köpläge, fokusera på långsiktiga innehav och se till att ha en grundläggande krisberedskap i hemmet.",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-18"
+          },
+          "ai_analysis": {
+            "input_prompt": "AI-analys av video: USA bombar Iran – Jag köper fler aktier",
+            "output": "**Sammanfattning:** Videon dominerande stämning är en positiv och uppmuntrande, med en tydlig budskap om att investera i långsiktighet och att se röda siffror som en möjlighet. Videon har ett högt like-for-hållande, men det är ändå värt att notera att 92% av tittarna gillar videon, vilket kan tyda på att budskapet är relativt enkelt och lätt att förstå.\n\n**Juridisk bedömning:** Sannolikheten är låg för förtal. Videon innehåller inga anklagelser om brott eller grova förolämpningar, utan istället en tydlig och uppmuntrande budskap om investeringar och sparande.",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-18"
+          }
+        },
+        "video_stats": {
+          "likes": 102,
+          "dislikes": 0,
+          "views": 994,
+          "like_ratio": 100.0
+        },
+        "ui_comment_count": 12,
         "sentToDiscord": true,
         "discord_posted_date": "2026-03-18"
       }
     ]
   },
   "_queue_state": {
-    "pending_queue": [],
+    "pending_queue": [
+      "cXgQX8JBLJ4"
+    ],
     "completed_ids": [
       "Wt9xF6toEac",
       "_Yoq1-Yu6vY",
       "QoVoasqU5Ig",
-      "I6uil2F_tLM"
+      "I6uil2F_tLM",
+      "p8tsfpW_uhA",
+      "vRggtmBKLuY",
+      "umALNO9Arks",
+      "Z7_46jzcgkk",
+      "Ms2Qqua_Efo",
+      "NzN_moMiupI",
+      "RpdGIyevgEY"
     ],
-    "fetch_depth": 1,
+    "fetch_depth": 3,
     "current_processing": null
   }
 }

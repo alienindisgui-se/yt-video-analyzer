@@ -24,7 +24,7 @@
     "videos_per_run": 4,
     "max_comments": 200,
     "gemini_model": "gemini-3.1-flash-lite-preview",
-    "fetch_depth": 1
+    "fetch_depth": 3
   },
   "rate_limits": {}
 }

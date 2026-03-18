@@ -114,6 +114,35 @@ STATE_FILE = "comment_state.json"
 ANALYSIS_STATS_FILE = "analysis_stats.json"  # Track video analysis counts per channel
 CONFIG_FILE = "config.json"
 
+# Channel name mapping to normalize extracted names to expected identifiers
+CHANNEL_NAME_MAPPING = {
+    "RASK": "CarlFredrikAlexanderRask",
+    "ANJO": "ANJO1", 
+    "MOTVIKTEN": "MotVikten",
+    "SKULDIS": "Skuldis"
+}
+
+def normalize_channel_name(extracted_name):
+    """Normalize extracted channel name to expected channel identifier"""
+    if not extracted_name:
+        return None
+    
+    # Clean up the name (remove @ prefix, convert to uppercase)
+    clean_name = extracted_name.lstrip("@").upper()
+    
+    # Direct mapping
+    if clean_name in CHANNEL_NAME_MAPPING:
+        return CHANNEL_NAME_MAPPING[clean_name]
+    
+    # Fuzzy matching for partial matches
+    for expected_channel in CHANNELS:
+        if clean_name in expected_channel.upper() or expected_channel.upper() in clean_name:
+            return expected_channel
+    
+    # If no match found, return the cleaned name for debugging
+    logging.warning(f"No channel mapping found for extracted name: '{extracted_name}' (cleaned: '{clean_name}')")
+    return clean_name
+
 
 def estimate_tokens(text, content_type="general"):
     """
@@ -811,12 +840,23 @@ def _handle_youtube_consent(page):
             logging.error("Failed to accept consent: " + str(e))
 
 
-def _extract_video_ids(page, max_videos, completed_videos, channel_name):
-    """Extract video IDs from page elements"""
+def _extract_video_ids(page, max_videos, completed_videos, channel_name, fetch_depth=1):
+    """Extract video IDs from page elements with depth-based pagination"""
     logging.info("=== FUNCTION START: _extract_video_ids ===")
     videos_found = 0
     latest_videos = []
     video_to_channel = {}
+    
+    # Scroll to load more videos based on fetch_depth
+    scroll_count = 0
+    target_scroll_depth = fetch_depth
+    
+    while scroll_count < target_scroll_depth:
+        scroll_count += 1
+        scroll_distance = scroll_count * 2000  # Scroll 2000px each time
+        page.evaluate(f"window.scrollBy(0, {scroll_distance})")
+        page.wait_for_timeout(2000)  # Wait for videos to load
+        logging.info(f"Scrolled to depth {scroll_count} (target: {target_scroll_depth})")
     
     video_locators = [
         'ytd-rich-item-renderer a[href*="/watch?v="]',
@@ -825,7 +865,10 @@ def _extract_video_ids(page, max_videos, completed_videos, channel_name):
     
     for locator_selector in video_locators:
         video_elements = page.locator(locator_selector)
-        for i in range(min(max_videos, video_elements.count())):
+        total_videos = video_elements.count()
+        logging.info(f"Found {total_videos} video elements with selector: {locator_selector}")
+        
+        for i in range(min(total_videos, max_videos * fetch_depth)):  # Check more elements based on depth
             if videos_found >= max_videos:
                 break
             
@@ -838,11 +881,14 @@ def _extract_video_ids(page, max_videos, completed_videos, channel_name):
                     latest_videos.append(v_id)
                     video_to_channel[v_id] = channel_name  # Map to actual channel username
                     videos_found += 1
+                    logging.info(f"Added video {v_id} (position {i+1}) from {channel_name}")
+                else:
+                    logging.info(f"Skipped completed video {v_id} (position {i+1}) from {channel_name}")
     
     return latest_videos, video_to_channel
 
 
-def _fetch_channel_videos(page, channel, max_videos, completed_videos):
+def _fetch_channel_videos(page, channel, max_videos, completed_videos, fetch_depth=1):
     """Fetch videos from a single channel"""
     logging.info("=== FUNCTION START: _fetch_channel_videos ===")
     try:
@@ -858,7 +904,7 @@ def _fetch_channel_videos(page, channel, max_videos, completed_videos):
         page.wait_for_timeout(5000)
         
         # Extract video IDs with filtering
-        return _extract_video_ids(page, max_videos, completed_videos, channel)
+        return _extract_video_ids(page, max_videos, completed_videos, channel, fetch_depth)
         
     except Exception as e:
         logging.error(f"Failed to fetch videos for {channel}: {e}")
@@ -876,14 +922,15 @@ def _find_channel_for_video(video_id):
     logging.info("=== FUNCTION START: _find_channel_for_video ===")
     analysis_stats = load_analysis_stats()
     
-    for channel_name, channel_data in analysis_stats.items():
+    for channel_key, channel_data in analysis_stats.items():
         if isinstance(channel_data, dict) and "videos" in channel_data:
             for video in channel_data["videos"]:
                 if (
                     isinstance(video, dict)
                     and video.get("video_id") == video_id
                 ):
-                    return channel_name
+                    # Return the actual channel name stored in the video entry
+                    return video.get("channel_name", channel_key)
     
     return None
 
@@ -956,7 +1003,7 @@ def fetch_latest_videos(channels, fetch_depth=6):
             try:
                 for channel in channels:
                     channel_videos, channel_mapping = _fetch_channel_videos(
-                        page, channel, queue_state["fetch_depth"], completed_videos
+                        page, channel, queue_state["fetch_depth"], completed_videos, queue_state["fetch_depth"]
                     )
                     latest_videos.extend(channel_videos)
                     video_to_channel.update(channel_mapping)
@@ -1024,7 +1071,11 @@ def _get_channel_videos_count(channel_name):
     """Get videos count for channel"""
     logging.info("=== FUNCTION START: _get_channel_videos_count ===")
     analysis_stats = load_analysis_stats()
-    channel_data = analysis_stats.get(channel_name, {"videos": []})
+    
+    # Use channel name directly for lookup
+    channel_key = channel_name
+    
+    channel_data = analysis_stats.get(channel_key, {"videos": []})
     return len(channel_data["videos"])
 
 def _determine_video_word_form(videos_count):
@@ -1280,16 +1331,18 @@ def _load_stats_file_with_retry():
 def _validate_channel_structure(data, channel):
     """Check if channel has proper structure"""
     logging.info("=== FUNCTION START: _validate_channel_structure ===")
-    return channel in data and "videos" in data[channel]
+    channel_key = channel
+    return channel_key in data and "videos" in data[channel_key]
 
 def _ensure_channel_exists(data, channel):
     """Ensure channel exists in data"""
     logging.info("=== FUNCTION START: _ensure_channel_exists ===")
-    if channel not in data:
+    channel_key = channel
+    if channel_key not in data:
         logging.info(
-            f"DATA CHANGE: Adding new channel '{channel}' to analysis stats"
+            f"DATA CHANGE: Adding new channel '{channel}' to analysis stats (key: '{channel_key}')"
         )
-        data[channel] = {"videos": []}
+        data[channel_key] = {"videos": []}
         return True
     return False
 
@@ -1316,19 +1369,28 @@ def _perform_channel_migration(data, channel):
     old_data = data[channel]
     old_video_count = len(old_data.get("videos", []))
     
-    # Create new structure
-    data[channel] = {"videos": []}
+    # Use channel name directly
+    channel_key = channel
     
-    # Add migrated video if applicable
-    if "videos_analyzed" in old_data:
-        migrated_video = _create_migrated_video_entry(old_data)
-        data[channel]["videos"].append(migrated_video)
+    # Create new structure under channel key
+    data[channel_key] = {"videos": []}
+    
+    # Migrate existing videos if any
+    if old_video_count > 0:
+        for video in old_data["videos"]:
+            # Add channel_name to video if not present
+            if "channel_name" not in video:
+                video["channel_name"] = channel
+            data[channel_key]["videos"].append(video)
         logging.info(
-            f"DATA CHANGE: Added migrated video entry for channel '{channel}'"
+            f"DATA CHANGE: Migrated {old_video_count} videos from '{channel}' to key '{channel_key}'"
         )
     
+    # Remove old channel key
+    del data[channel]
+    
     logging.info(
-        f"DATA REPLACEMENT COMPLETE: Channel '{channel}' - old entries: {old_video_count}, new structure created"
+        f"DATA REPLACEMENT COMPLETE: Migrated channel '{channel}' to '{channel_key}'"
     )
 
 def _process_channel_structure(data, channel):
@@ -1345,11 +1407,11 @@ def _process_channel_structure(data, channel):
         )
         _perform_channel_migration(data, channel)
 
-def _validate_all_channels(data):
-    """Validate and process all channel structures"""
-    logging.info("=== FUNCTION START: _validate_all_channels ===")
-    for channel in CHANNELS:
-        _process_channel_structure(data, channel)
+def _migrate_old_channel_keys(data):
+    """Function kept for compatibility but no longer needed as we use channel names directly"""
+    logging.info("=== FUNCTION START: _migrate_old_channel_keys ===")
+    # No migration needed as we use channel names directly
+    pass
 
 
 def load_analysis_stats():
@@ -1357,8 +1419,8 @@ def load_analysis_stats():
     logging.info("=== FUNCTION START: load_analysis_stats ===")
     data, error = _load_stats_file_with_retry()
     if error:
-        logging.error(f"Failed to load analysis stats: {error}")
-    _validate_all_channels(data)
+        logging.info(f"Failed to load analysis stats: {error}")
+    
     return data
 
 
@@ -1393,6 +1455,7 @@ def find_or_create_video(
 ):
     """Find existing video or create new entry in the videos array"""
     logging.info("=== FUNCTION START: find_or_create_video ===")
+    
     channel_data = stats.get(channel_name, {"videos": []})
 
     # Find existing video
@@ -1405,6 +1468,7 @@ def find_or_create_video(
     new_video = {
         "video_id": video_id,
         "title": title,
+        "channel_name": channel_name,  # Store actual channel name
         "analysis_date": format_timestamp(current_time),
         "analysis_timestamp": current_time,
         "publication_date": publication_date
@@ -2606,6 +2670,15 @@ def process_single_video(v_id):
             transcription_model,
         ) = get_yt_data(v_id, deep_scrape=True)
 
+        # Normalize channel name to expected identifier
+        normalized_channel_name = normalize_channel_name(channel_name)
+        if not normalized_channel_name:
+            logging.warning(f"Could not normalize channel name '{channel_name}' for video {v_id}")
+            return
+        
+        logging.info(f"Normalized channel name '{channel_name}' to '{normalized_channel_name}' for video {v_id}")
+        channel_name = normalized_channel_name
+
         # Handle case where video_to_channel might be empty (from queue processing)
         if channel_name == UNKNOWN_CHANNEL:
             # Try to find channel from analysis stats
@@ -2643,20 +2716,18 @@ def process_single_video(v_id):
                 )
                 return
             else:
-                # Find or create video entry
+                # Always create video entry and save metadata for any processed video
                 analysis_stats = load_analysis_stats()
                 video_entry = find_or_create_video(
                     analysis_stats, channel_name, v_id, title, publication_date
                 )
 
-                # Save video metadata and check if this is a new entry or existing one
-
                 # Save video metadata
                 video_entry["video_stats"] = video_stats
                 video_entry["ui_comment_count"] = ui_count
 
-                # Save summarized transcript to analyses object
-                if transcript_text:
+                # Save summarized transcript to analyses object if available
+                if transcript_text and transcript_text != "TRANSCRIPTION_FAILED":
                     # Summarize transcript for storage
                     summarized_transcript = summarize_transcript(transcript_text, title)
                     logging.info(
@@ -2737,10 +2808,21 @@ def process_single_video(v_id):
 
                     else:
                         logging.warning(f"Failed to send Discord message for {v_id}")
+                        
+                        # Still mark as completed since processing succeeded
+                        video_entry["sentToDiscord"] = False
+                        logging.info(
+                            f"VIDEO COMPLETED: {v_id} processing completed successfully (Discord failed)"
+                        )
+
+                        # Print completion marker for subprocess detection
+                        print(f"PROCESSING_SUCCESS:{v_id}")
                 else:
                     logging.warning(
                         f"Skipping Discord message for {v_id} - missing required data (ai_analysis: {bool(ai_analysis)}, transcript: {bool(transcript_text and transcript_text != 'TRANSCRIPTION_FAILED')})"
-                    )         # Save final analysis stats
+                    )
+
+                # Save final analysis stats - this must happen regardless of Discord status
                 save_analysis_stats(analysis_stats)
 
                 # Rest of the code remains the same
@@ -2831,6 +2913,13 @@ if __name__ == "__main__":
                         logging.info(f"Discord message sent for {v_id}")
                         
                         # Mark as completed in the main process queue state
+                        queue_state = load_queue_state()
+                        mark_video_completed(queue_state, v_id)
+                        save_queue_state(queue_state)
+                    elif f"PROCESSING_SUCCESS:{v_id}" in result.stdout:
+                        logging.info(f"Video processing completed successfully for {v_id} (Discord failed)")
+                        
+                        # Mark as completed in the main process queue state even if Discord failed
                         queue_state = load_queue_state()
                         mark_video_completed(queue_state, v_id)
                         save_queue_state(queue_state)
