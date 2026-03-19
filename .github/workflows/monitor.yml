@@ -1,4 +1,4 @@
-name: Monitor Comments
+name: YouTube Video Analysis
 
 on:
   schedule:
