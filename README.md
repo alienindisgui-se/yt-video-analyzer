@@ -15,12 +15,13 @@ A sophisticated Python-based system for automated YouTube video analysis with AI
 - **📝 Automated Transcription**: Video transcription using OpenAI Whisper and AssemblyAI with fallback options
 - **⚖️ Legal Assessment**: Automatic legal risk assessment for potential defamation cases in Swedish
 - **💬 Discord Notifications**: Rich embed reports with analysis results and video statistics
-- **🎯 Smart Comment Analysis**: Processes up to 200 comments per video for comprehensive sentiment analysis
+- **~~🎯 Smart Comment Analysis~~**: ~~Processes up to 200 comments per video for comprehensive sentiment analysis~~
 - **🔄 Queue Management**: Intelligent video queue system with deduplication and state persistence
 - **🌐 Multi-Model Support**: Primary/fallback model architecture with multiple AI providers
 - **📊 Analytics Tracking**: Comprehensive video statistics including like ratios, view counts, and engagement metrics
 - **🔒 Security-First**: Rate limiting, error handling, and secure API key management
 - **⚡ High-Frequency Monitoring**: Runs every 30 minutes for timely content analysis
+- **🔧 Improved Configuration**: Updated workflow name and gitignore for better project organization
 
 ## 🏗️ Architecture
 
@@ -31,8 +32,7 @@ yt-video-analyzer/
 ├── analysis_stats.json              # Historical analysis data and queue state
 ├── requirements.txt                # Python dependencies
 ├── .github/workflows/
-│   ├── monitor.yml                 # GitHub Actions automation (every 30 min)
-│   └── build.yml                   # CI/CD pipeline
+│   └── monitor.yml                 # GitHub Actions automation (every 30 min)
 └── README.md                       # This file
 ```
 
@@ -104,7 +104,8 @@ Example configuration:
   },
   "settings": {
     "videos_per_run": 4,
-    "max_comments": 200,
+    "~~max_comments~~": ~~200~~,  # Comment analysis disabled
+    "gemini_model": "gemini-3.1-flash-lite-preview",
     "fetch_depth": 3
   }
 }
@@ -162,7 +163,7 @@ Stores historical analysis data and queue state:
 
 You can manually trigger the analysis workflow:
 1. Go to Actions tab in GitHub
-2. Select "Monitor Comments" workflow
+2. Select "YouTube Video Analysis" workflow
 3. Click "Run workflow"
 
 ## 🧠 AI Analysis Features
@@ -178,7 +179,7 @@ You can manually trigger the analysis workflow:
 
 1. **Video Discovery**: Automated YouTube video detection
 2. **Transcription**: Audio-to-text conversion
-3. **Comment Analysis**: Sentiment and content analysis of comments
+3. **~~Comment Analysis~~**: ~~Sentiment and content analysis of comments~~
 4. **Legal Assessment**: Defamation risk evaluation
 5. **Report Generation**: Comprehensive analysis summary
 6. **Discord Notification**: Rich embed with results
@@ -201,7 +202,7 @@ You can manually trigger the analysis workflow:
 ⚖️ Juridisk bedömning: Sannolikheten är [hög/låg] för förtal
 📊 Like-ratio: [XX.X%]
 👁️ Visningar: [XXX,XXX]
-💬 Analyserade kommentarer: [XXX]
+~~💬 Analyserade kommentarer: [XXX]~~
 ```
 
 ## 🔒 Security Considerations
@@ -222,7 +223,7 @@ You can manually trigger the analysis workflow:
 
 The system uses multiple APIs:
 
-- **YouTube Data API**: Video metadata and comments
+- **YouTube Data API**: Video metadata
 - **Groq API**: Primary AI analysis
 - **Gemini API**: Fallback AI processing
 - **AssemblyAI**: Audio transcription services
@@ -230,11 +231,11 @@ The system uses multiple APIs:
 
 ## 🚀 Usage
 
-### Manual Execution
+### ~~Manual Execution~~
 
-Run the analyzer locally:
+~~Run the analyzer locally:~~
 ```bash
-python monitor.py
+# python monitor.py  # Comment analysis disabled
 ```
 
 ### Monitoring
@@ -244,11 +245,11 @@ Check the analysis progress:
 tail -f job-logs.txt
 ```
 
-### Data Management
+### ~~Data Management~~
 
-View current analysis state:
+~~View current analysis state:~~
 ```bash
-cat analysis_stats.json
+# cat analysis_stats.json
 ```
 
 ## 🔧 Troubleshooting
@@ -279,7 +280,7 @@ Reset the processing queue:
 ## 📈 Performance Metrics
 
 - **Processing Speed**: ~4 videos per run
-- **Comment Analysis**: Up to 200 comments per video
+- **~~Comment Analysis~~**: ~~Up to 200 comments per video~~  # ~~Comment analysis disabled~~
 - **Transcription Accuracy**: High-quality audio processing
 - **Legal Analysis**: Specialized Swedish legal assessment
 - **Notification Latency**: Real-time Discord alerts

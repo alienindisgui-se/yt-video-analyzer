@@ -1759,29 +1759,35 @@ def _extract_publication_date(page):
     return UNKNOWN_DATE
 
 
-def _extract_comment_count(page):
-    """Extract UI comment count from page"""
-    ui_count = 0
-    count_locators = [
-        ("#count .yt-core-attributed-string", "yt-core-attributed-string"),
-        ("h2#count yt-formatted-string", "yt-formatted-string"),
-        ("yt-formatted-string.count-text", "count-text"),
-    ]
-    
-    for selector, desc in count_locators:
-        try:
-            loc = page.locator(selector)
-            loc.wait_for(state="visible", timeout=10000)
-            digits = "".join(
-                filter(str.isdigit, loc.first.text_content().strip())
-            )
-            if digits:
-                ui_count = int(digits)
-                break
-        except TimeoutError:
-            pass
-    
-    return ui_count
+# def _extract_comment_count(page):
+#     """Extract UI comment count from page"""
+#     ui_count = 0
+#     count_locators = [
+#         ("#count .yt-core-attributed-string", "yt-core-attributed-string"),
+#         ("#count yt-formatted-string", "yt-formatted-string"),
+#         (".ytd-comments-header-renderer #count", "yt-core-attributed-string")
+#     ]
+# 
+#     for selector, fallback_class in count_locators:
+#         try:
+#             count_element = page.locator(selector).first
+#             if count_element.count() > 0:
+#                 count_text = count_element.inner_text()
+#                 # Extract number from text like "123 comments" or "1.2K comments"
+#                 import re
+#                 numbers = re.findall(r'[\d,]+', count_text)
+#                 if numbers:
+#                     number_str = numbers[0].replace(',', '')
+#                     if 'K' in count_text.upper():
+#                         ui_count = int(float(number_str) * 1000)
+#                     else:
+#                         ui_count = int(number_str)
+#                 break
+#         except Exception as e:
+#             logging.debug(f"Comment count extraction failed with selector {selector}: {e}")
+#             continue
+# 
+#     return ui_count
 
 
 def _setup_youtube_browser():
@@ -1799,75 +1805,76 @@ def _setup_youtube_browser():
     return browser, page
 
 
-def _sort_comments_newest(page):
-    """Sort comments to newest first"""
-    try:
-        page.evaluate("""() => {
-            const btn = document.querySelector('ytd-comments-header-renderer #sort-menu');
-            if (btn) btn.click();
-        }""")
-        page.wait_for_timeout(1000)
-
-        page.evaluate("""() => {
-            const items = document.querySelectorAll('ytd-menu-service-item-renderer');
-            if (items.length > 1) items[1].click();
-        }""")
-        page.wait_for_timeout(3000)
-    except Exception as e:
-        logging.warning(
-            f"Failed to sort comments: {e}. Proceeding with default sort."
-        )
-
-
-def _scroll_to_load_comments(page):
-    """Scroll to load all top-level comment threads"""
-    last_thread_count = 0
-    no_change = 0
-    
-    while True:
-        thread_nodes = page.locator("ytd-comment-thread-renderer")
-        current_thread = thread_nodes.count()
-        if current_thread == last_thread_count:
-            no_change += 1
-            if no_change >= 3:
-                break
-        else:
-            no_change = 0
-            last_thread_count = current_thread
-        page.evaluate(SCROLL_SCRIPT)
-        page.wait_for_timeout(5000)
+# def _sort_comments_newest(page):
+#     """Sort comments to newest first"""
+#     try:
+#         page.evaluate("""() => {
+#             const btn = document.querySelector('ytd-comments-header-renderer #sort-menu');
+#             if (btn) btn.click();
+#         """)
+#         page.wait_for_timeout(1000)
+# 
+#         page.evaluate("""() => {
+#             const items = document.querySelectorAll('ytd-menu-service-item-renderer');
+#             if (items.length > 1) items[1].click();
+#         """)
+#         page.wait_for_timeout(3000)
+#         logging.info("Comments sorted to newest first")
+#     except Exception as e:
+#         logging.warning(
+#             f"Failed to sort comments: {e}. Proceeding with default sort."
+#         )
 
 
-def _expand_comment_replies(page):
-    """Expand all comment replies using JavaScript"""
-    max_iterations = 3
-    
-    for i in range(max_iterations):
-        try:
-            clicks_dispatched = page.evaluate("""() => {
-                const buttons = Array.from(document.querySelectorAll('ytd-button-renderer#more-replies button'));
-                let count = 0;
-                for (let btn of buttons) {
-                    if (btn.offsetParent !== null) { 
-                        btn.click();
-                        count++;
-                    }
-                }
-                return count;
-            }""")
+# def _scroll_to_load_comments(page):
+#     """Scroll to load all top-level comment threads"""
+#     last_thread_count = 0
+#     no_change = 0
+#     
+#     while True:
+#         thread_nodes = page.locator("ytd-comment-thread-renderer")
+#         current_thread = thread_nodes.count()
+#         if current_thread == last_thread_count:
+#             no_change += 1
+#             if no_change >= 3:
+#                 break
+#         else:
+#             no_change = 0
+#             last_thread_count = current_thread
+#         page.evaluate(SCROLL_SCRIPT)
+#         page.wait_for_timeout(5000)
 
-            if clicks_dispatched == 0:
-                break
 
-            page.wait_for_timeout(4000)
-            page.evaluate(SCROLL_SCRIPT)
-            page.wait_for_timeout(2000)
-
-        except Exception as e:
-            logging.warning(
-                f"Iteration {i + 1} JS click failed: {str(e).splitlines()[0]}"
-            )
-            break
+# def _expand_comment_replies(page):
+#     """Expand all comment replies using JavaScript"""
+#     max_iterations = 3
+#     
+#     for i in range(max_iterations):
+#         try:
+#             clicks_dispatched = page.evaluate("""() => {
+#                 const buttons = Array.from(document.querySelectorAll('ytd-button-renderer#more-replies button'));
+#                 let count = 0;
+#                 for (let btn of buttons) {
+#                     if (btn.offsetParent !== null) { 
+#                         btn.click();
+#                         count++;
+#                     }
+#                 }
+#                 return count;
+#             """)
+# 
+#             if clicks_dispatched == 0:
+#                 break
+# 
+#             page.wait_for_timeout(4000)
+#             page.evaluate(SCROLL_SCRIPT)
+#             page.wait_for_timeout(2000)
+# 
+#         except Exception as e:
+#             logging.warning(
+#                 f"Iteration {i + 1} JS click failed: {str(e).splitlines()[0]}"
+#             )
+#             break
 
 
 def _is_restricted_content(video_stats, title):
@@ -1910,7 +1917,7 @@ def _scrape_video_metadata(page, v_id):
     title = _extract_video_title(page)
     channel_name = _extract_channel_name(page, v_id)
     publication_date = _extract_publication_date(page)
-    ui_count = _extract_comment_count(page)
+    ui_count = 0  # Comment: Comment count extraction disabled
     
     return {
         "title": title,
@@ -1923,28 +1930,22 @@ def _scrape_video_metadata(page, v_id):
 
 def _perform_deep_scrape(page, v_id, title, channel_name, publication_date, deep_scrape):
     """Perform deep scraping of comments and transcript"""
-    ui_count = _extract_comment_count(page)
-    comments = {}
+    ui_count = 0  # Comment: Comment count extraction disabled
+    comments = {}  # Comment: Comment extraction disabled
     
     if deep_scrape:
         logging.info(
-            f"Starting scrape for '{title}'. UI reports ~{ui_count} comments."
+            f"Starting scrape for '{title}'. Comment analysis disabled."
         )
 
-        # Sort comments to newest first
-        _sort_comments_newest(page)
-
-        # Phase 1: Load all top-level threads by scrolling
-        _scroll_to_load_comments(page)
-
-        # Phase 2: Expand replies
-        _expand_comment_replies(page)
+        # Comment: Comment sorting and extraction disabled
+        # _sort_comments_newest(page)
+        # _scroll_to_load_comments(page)
+        # _expand_comment_replies(page)
 
         logging.info(
-            f"Extracted {len(comments)} unique comments after deduplication."
+            "Comment extraction disabled - skipping comment analysis."
         )
-        if ui_count == 0 and len(comments) > 0:
-            ui_count = len(comments)
 
         # Get transcript and analysis
         transcript_text, ai_analysis, ai_model, transcription_model = (
