@@ -2835,11 +2835,12 @@ def process_single_video(v_id):
                     save_queue_state(queue_state)
 
                 # Send Discord message if we have valid analysis data
-                if (
-                    ai_analysis
-                    and transcript_text
-                    and transcript_text != "TRANSCRIPTION_FAILED"
-                ):
+                has_ai_analysis = bool(ai_analysis)
+                has_transcript = bool(transcript_text and transcript_text != "TRANSCRIPTION_FAILED")
+                
+                logging.info(f"Discord eligibility check for {v_id}: ai_analysis={has_ai_analysis}, transcript_valid={has_transcript}")
+                
+                if has_ai_analysis and has_transcript:
                     logging.info(f"Sending Discord message for {v_id}")
 
                     # Send to Discord
@@ -2876,6 +2877,9 @@ def process_single_video(v_id):
                     logging.warning(
                         f"Skipping Discord message for {v_id} - missing required data (ai_analysis: {bool(ai_analysis)}, transcript: {bool(transcript_text and transcript_text != 'TRANSCRIPTION_FAILED')})"
                     )
+
+                    # Still print completion marker since processing succeeded
+                    print(f"PROCESSING_SUCCESS:{v_id}")
 
                 # Save final analysis stats - this must happen regardless of Discord status
                 save_analysis_stats(analysis_stats)
