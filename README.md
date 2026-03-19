@@ -200,11 +200,12 @@ You can manually trigger the analysis workflow:
 
 ```
 🤖 AI-Analys: [Video Title]
-📺 Kanal: [Channel Name]
-⚖️ Juridisk bedömning: Sannolikheten är [hög/låg] för förtal
-📊 Like-ratio: [XX.X%]
-👁️ Visningar: [XXX,XXX]
-~~💬 Analyserade kommentarer: [XXX]~~
+
+Kanal: [Channel Name]     Like-ratio: [XX.X]%
+Publicerad: [YYYY-MM-DD]   
+Video: [Title with YouTube link]
+
+[AI Analysis Description]
 ```
 
 ## 🔒 Security Considerations
@@ -264,20 +265,6 @@ channel1,channel2,channel3
 - Easy testing with different channel combinations
 - Secure management via GitHub secrets
 - Automatic fallback to default channels if not configured
-
-### Monitoring
-
-Check the analysis progress:
-```bash
-tail -f job-logs.txt
-```
-
-### ~~Data Management~~
-
-~~View current analysis state:~~
-```bash
-# cat analysis_stats.json
-```
 
 ## 🔧 Troubleshooting
 
