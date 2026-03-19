@@ -159,7 +159,7 @@ Stores historical analysis data and queue state:
 - `GROQ_API_KEY`: Groq API key for primary AI model
 - `GEMINI_API_KEY`: Google Gemini API key for fallback
 - `ASSEMBLYAI_API_KEY`: AssemblyAI API key for transcription
-- `YOUTUBE_CHANNELS`: Comma-separated list of YouTube channels (e.g., `CarlFredrikAlexanderRask,ANJO1,MotVikten,Skuldis`)
+- `YOUTUBE_CHANNELS`: Comma-separated list of YouTube channels (e.g., `techchannel,gamingchannel,newschannel,reviewchannel`)
 
 ### Manual Execution
 
@@ -241,7 +241,7 @@ The system uses multiple APIs:
    cp .env.example .env
    
    # Edit .env with your API keys and channels
-   CHANNELS_LIST=CarlFredrikAlexanderRask,ANJO1,MotVikten,Skuldis
+   CHANNELS_LIST=techchannel,gamingchannel,newschannel,reviewchannel
    ```
 
 2. **Run the analyzer**:
@@ -265,7 +265,7 @@ The system supports dynamic channel configuration through environment variables:
 
 **Format**: Comma-separated channel names
 ```
-CarlFredrikAlexanderRask,ANJO1,MotVikten,Skuldis
+channel1,channel2,channel3
 ```
 
 **Benefits**:
