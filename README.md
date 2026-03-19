@@ -92,7 +92,7 @@ Main configuration file containing:
 
 - **AI Models**: Primary and fallback model configuration
 - **Prompts**: Swedish analysis prompts for legal assessment
-- **Settings**: Video processing limits and comment analysis depth
+- **Settings**: Video processing limits and analysis configuration
 - **Rate Limits**: API rate limiting configuration
 
 Example configuration:
@@ -237,10 +237,7 @@ The system uses multiple APIs:
 
 1. **Set up environment variables**:
    ```bash
-   # Copy the example .env file
-   cp .env.example .env
-   
-   # Edit .env with your API keys and channels
+   # Create or edit the .env file with your API keys and channels
    CHANNELS_LIST=techchannel,gamingchannel,newschannel,reviewchannel
    ```
 
