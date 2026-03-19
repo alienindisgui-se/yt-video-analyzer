@@ -35,7 +35,7 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           ASSEMBLYAI_API_KEY: ${{ secrets.ASSEMBLYAI_API_KEY }}
-          CHANNELS_LIST: ${{ secrets.YOUTUBE_CHANNELS }}
+          CHANNELS_LIST: ${{ secrets.CHANNELS_LIST }}
         run: python monitor.py
       - name: Commit and Push changes
         run: |

@@ -159,7 +159,7 @@ Stores historical analysis data and queue state:
 - `GROQ_API_KEY`: Groq API key for primary AI model
 - `GEMINI_API_KEY`: Google Gemini API key for fallback
 - `ASSEMBLYAI_API_KEY`: AssemblyAI API key for transcription
-- `YOUTUBE_CHANNELS`: Comma-separated list of YouTube channels (e.g., `techchannel,gamingchannel,newschannel,reviewchannel`)
+- `CHANNELS_LIST`: Comma-separated list of YouTube channels (e.g., `techchannel,gamingchannel,newschannel,reviewchannel`)
 
 ### Manual Execution
 
@@ -248,25 +248,17 @@ The system uses multiple APIs and services:
    python monitor.py
    ```
 
-### ~~Manual Execution~~
-
-~~Run the analyzer locally:~~
-```bash
-# python monitor.py  # Comment analysis disabled
-```
-
 ### Channel Configuration
 
 The system supports dynamic channel configuration through environment variables:
 
 **Local Development**: Set `CHANNELS_LIST` in your `.env` file
-**GitHub Actions**: Set `YOUTUBE_CHANNELS` repository secret
+**GitHub Actions**: Set `CHANNELS_LIST` repository secret
 
 **Format**: Comma-separated channel names
-```
+```bash
 channel1,channel2,channel3
 ```
-
 **Benefits**:
 - No code changes needed to update channels
 - Easy testing with different channel combinations
