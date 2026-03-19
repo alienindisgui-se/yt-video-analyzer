@@ -81,6 +81,7 @@ DISCORD_WEBHOOK=your_discord_webhook_url
 GROQ_API_KEY=your_groq_api_key
 GEMINI_API_KEY=your_gemini_api_key
 ASSEMBLYAI_API_KEY=your_assemblyai_api_key
+CHANNELS_LIST=channel1,channel2,channel3  # Comma-separated YouTube channel names
 ```
 
 ### Configuration Files
@@ -158,6 +159,7 @@ Stores historical analysis data and queue state:
 - `GROQ_API_KEY`: Groq API key for primary AI model
 - `GEMINI_API_KEY`: Google Gemini API key for fallback
 - `ASSEMBLYAI_API_KEY`: AssemblyAI API key for transcription
+- `YOUTUBE_CHANNELS`: Comma-separated list of YouTube channels (e.g., `CarlFredrikAlexanderRask,ANJO1,MotVikten,Skuldis`)
 
 ### Manual Execution
 
@@ -231,12 +233,46 @@ The system uses multiple APIs:
 
 ## 🚀 Usage
 
+### Local Development
+
+1. **Set up environment variables**:
+   ```bash
+   # Copy the example .env file
+   cp .env.example .env
+   
+   # Edit .env with your API keys and channels
+   CHANNELS_LIST=CarlFredrikAlexanderRask,ANJO1,MotVikten,Skuldis
+   ```
+
+2. **Run the analyzer**:
+   ```bash
+   python monitor.py
+   ```
+
 ### ~~Manual Execution~~
 
 ~~Run the analyzer locally:~~
 ```bash
 # python monitor.py  # Comment analysis disabled
 ```
+
+### Channel Configuration
+
+The system supports dynamic channel configuration through environment variables:
+
+**Local Development**: Set `CHANNELS_LIST` in your `.env` file
+**GitHub Actions**: Set `YOUTUBE_CHANNELS` repository secret
+
+**Format**: Comma-separated channel names
+```
+CarlFredrikAlexanderRask,ANJO1,MotVikten,Skuldis
+```
+
+**Benefits**:
+- No code changes needed to update channels
+- Easy testing with different channel combinations
+- Secure management via GitHub secrets
+- Automatic fallback to default channels if not configured
 
 ### Monitoring
 
