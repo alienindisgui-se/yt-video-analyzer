@@ -109,7 +109,26 @@ def setup_run_logging():
 
 
 # Configuration
-CHANNELS = ["CarlFredrikAlexanderRask", "ANJO1", "MotVikten", "Skuldis"]
+def load_channels_from_env():
+    """Load YouTube channels from environment variable"""
+    channels_str = os.getenv("CHANNELS_LIST", "")
+    
+    if not channels_str:
+        # Fallback to default channels if environment variable is not set
+        logging.warning("CHANNELS_LIST environment variable not set, using default channels")
+        return ["CarlFredrikAlexanderRask", "ANJO1", "MotVikten", "Skuldis"]
+    
+    # Parse comma-separated list and clean up whitespace
+    channels = [channel.strip() for channel in channels_str.split(",") if channel.strip()]
+    
+    if not channels:
+        logging.error("CHANNELS_LIST is empty after parsing, using default channels")
+        return ["CarlFredrikAlexanderRask", "ANJO1", "MotVikten", "Skuldis"]
+    
+    logging.info(f"Loaded {len(channels)} channels from environment: {channels}")
+    return channels
+
+CHANNELS = load_channels_from_env()
 STATE_FILE = "comment_state.json"
 ANALYSIS_STATS_FILE = "analysis_stats.json"  # Track video analysis counts per channel
 CONFIG_FILE = "config.json"
