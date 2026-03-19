@@ -223,11 +223,13 @@ You can manually trigger the analysis workflow:
 
 ## 📱 API Method
 
-The system uses multiple APIs:
+The system uses multiple APIs and services:
 
-- **YouTube Data API**: Video metadata
+- **Playwright**: Web scraping for YouTube video metadata and content
+- **yt-dlp**: Audio download from YouTube videos
+- **ReturnYouTubeDislikeAPI**: Video statistics (likes, dislikes, views)
 - **Groq API**: Primary AI analysis
-- **Gemini API**: Fallback AI processing
+- **Gemini API**: Fallback AI processing and transcript summarization
 - **AssemblyAI**: Audio transcription services
 - **Discord API**: Webhook notifications
 
