@@ -1759,6 +1759,36 @@ def _extract_publication_date(page):
     return UNKNOWN_DATE
 
 
+def _is_video_old_enough(publication_date):
+    """Check if video is at least 24 hours old"""
+    if publication_date == UNKNOWN_DATE:
+        # If we can't determine the date, assume it's old enough
+        logging.warning("Could not determine publication date, proceeding with analysis")
+        return True
+    
+    try:
+        from datetime import datetime
+        today = datetime.now().date()
+        pub_date = datetime.strptime(publication_date, "%Y-%m-%d").date()
+        
+        # Calculate the time difference
+        time_diff = today - pub_date
+        
+        # Check if at least 24 hours have passed (1 day)
+        is_old_enough = time_diff.days >= 1
+        
+        if not is_old_enough:
+            logging.info(f"Video too new (published {publication_date}, {time_diff.days} days ago). Skipping analysis.")
+        else:
+            logging.info(f"Video old enough (published {publication_date}, {time_diff.days} days ago). Proceeding with analysis.")
+            
+        return is_old_enough
+        
+    except Exception as e:
+        logging.warning(f"Error parsing publication date {publication_date}: {e}. Proceeding with analysis.")
+        return True
+
+
 # def _extract_comment_count(page):
 #     """Extract UI comment count from page"""
 #     ui_count = 0
@@ -2670,6 +2700,11 @@ def process_single_video(v_id):
             extracted_channel_name,
             transcription_model,
         ) = get_yt_data(v_id, deep_scrape=True)
+
+        # Check if video is old enough (at least 24 hours)
+        if not _is_video_old_enough(publication_date):
+            logging.info(f"Skipping video {v_id} - published less than 24 hours ago")
+            return
 
         # Normalize channel name to expected identifier
         normalized_channel_name = normalize_channel_name(channel_name)
