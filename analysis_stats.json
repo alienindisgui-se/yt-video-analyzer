@@ -12,14 +12,9 @@
     "videos": []
   },
   "_queue_state": {
-    "pending_queue": [
-      "p8tsfpW_uhA",
-      "_Yoq1-Yu6vY",
-      "QoVoasqU5Ig",
-      "I6uil2F_tLM"
-    ],
+    "pending_queue": [],
     "completed_ids": [],
-    "fetch_depth": 2,
+    "fetch_depth": 3,
     "current_processing": null
   }
 }
