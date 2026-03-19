@@ -293,7 +293,7 @@ Reset the processing queue:
 
 ## 📈 Performance Metrics
 
-- **Processing Speed**: ~4 videos per run
+- **Processing Speed**: 1 video per channel per run
 - **~~Comment Analysis~~**: ~~Up to 200 comments per video~~  # ~~Comment analysis disabled~~
 - **Transcription Accuracy**: High-quality audio processing
 - **Legal Analysis**: Specialized Swedish legal assessment
