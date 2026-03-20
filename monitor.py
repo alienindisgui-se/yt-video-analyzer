@@ -875,7 +875,6 @@ def _extract_video_ids(page, max_videos, completed_videos, channel_name, fetch_d
         scroll_distance = scroll_count * 2000  # Scroll 2000px each time
         page.evaluate(f"window.scrollBy(0, {scroll_distance})")
         page.wait_for_timeout(2000)  # Wait for videos to load
-        logging.info(f"Scrolled to depth {scroll_count} (target: {target_scroll_depth})")
     
     video_locators = [
         'ytd-rich-item-renderer a[href*="/watch?v="]',
@@ -885,7 +884,6 @@ def _extract_video_ids(page, max_videos, completed_videos, channel_name, fetch_d
     for locator_selector in video_locators:
         video_elements = page.locator(locator_selector)
         total_videos = video_elements.count()
-        logging.info(f"Found {total_videos} video elements with selector: {locator_selector}")
         
         for i in range(min(total_videos, max_videos * fetch_depth)):  # Check more elements based on depth
             if videos_found >= max_videos:
@@ -900,7 +898,6 @@ def _extract_video_ids(page, max_videos, completed_videos, channel_name, fetch_d
                     latest_videos.append(v_id)
                     video_to_channel[v_id] = channel_name  # Map to actual channel username
                     videos_found += 1
-                    logging.info(f"Added video {v_id} (position {i+1}) from {channel_name}")
                 else:
                     logging.info(f"Skipped completed video {v_id} (position {i+1}) from {channel_name}")
     
