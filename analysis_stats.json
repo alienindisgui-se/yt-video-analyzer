@@ -6,27 +6,27 @@
         "title": "LINNEAS INTERVJU HOS CLUEE!",
         "channel_name": "CarlFredrikAlexanderRask",
         "analysis_date": "2026-03-19",
-        "analysis_timestamp": 1773949296.8373132,
+        "analysis_timestamp": 1773955925.910933,
         "publication_date": "2026-03-18",
         "analyses": {
           "raw_transcript": {
             "input_prompt": "Transkribera och sammanfatta video: LINNEAS INTERVJU HOS CLUEE!",
-            "output": "Här är en sammanfattning av YouTube-videon där kreatören reagerar på Cluees intervju med Linnea:\n\n**Huvudpunkter:**\n\n*   **Kritik mot intervjun:** Videons skapare är kritisk till Cluees val att ge plattform åt Linnea och menar att intervjun inte tillför något nytt eller intressant. Han upplever att innehållet är repetitivt och att Linneas uttalanden präglas av undanflykter.\n*   **Skeptisk till Linneas trovärdighet:** Skaparen ifrågasätter Linneas påståenden om att hon och Kristoffer (Krippa) vill lägga dramat bakom sig. Han pekar på att de själva kontinuerligt eldar på konflikten genom att lova \"bomber\" och \"avslöjanden\" som aldrig kommer, vilket han menar är en strategi för att hålla visningssiffrorna uppe.\n*   **Motbevis om \"ryktesspridning\":** Skaparen argumenterar för att ryktena kring Linnea och Kristoffer inte är grundlösa påståenden från utomstående, utan ofta härstammar från parets egna uttalanden, livestreams och videos. Han anser att de försöker måla upp sig själva som offer för en osynlig hatkampanj trots att de själva är drivande i dramat.\n*   **Kritik mot \"Hatet\"-dokumentären:** Skaparen är negativ till SVT-dokumentären och anser att den missade målet genom att vara vinklad och lämna centrala frågor obesvarade.\n*   **Analys av Cluees roll:** Skaparen ifrågasätter varför Cluee väljer att uppmärksamma problematiska profiler och menar att hans kanalprestanda lider av detta. Han beskriver Cluee som en \"snake\" som döljer mobbning och personliga vendettor bakom en fasad av \"satir\" och \"skämt\".\n*   **Avslutande reflektion:** Videon präglas av en stark misstro mot att dramat skulle vara över. Skaparen menar att så länge inblandade parter har ekonomiska intressen av att hålla konflikten vid liv, kommer den att fortsätta, oavsett vad som sägs i intervjuer.",
+            "output": "Här är en sammanfattning av YouTube-videons innehåll:\n\nVideon är en reaktionsvideo där huvudpersonen (en annan kreatör) kommenterar en intervju som profilen \"Cluee\" gjort med Linnea (Kristoffer \"Krippas\" partner). Fokus ligger på följande punkter:\n\n* **Linneas rättsliga situation:** Linnea har blivit friad från anklagelser om ekobrott, vilket hon menar är en bekräftelse på att hon inte gjort det hon anklagats för. Hon uttrycker att hon har fått mycket stöd, men också blivit hårt ansatt i media och sociala medier.\n* **Kritik mot intervjun:** Reaktionsvideons skapare är mycket kritisk mot både intervjuarens (Cluee) och Linneas agerande. Han ifrågasätter varför Cluee väljer att ge utrymme åt personer som Linnea och Krippa, då han anser att de är kontroversiella och att publiken tröttnat på deras återkommande \"drama\".\n* **Kritik mot \"dramat\":** Videons skapare menar att Linnea och Krippa själva bär ansvaret för många av ryktena genom hur de uttryckt sig i sina egna kanaler. Han avfärdar Linneas påståenden om att ryktena är \"lösa påståenden\" och menar att hon i själva verket är högst delaktig i dramat genom att ständigt hajpa framtida \"bomber\" och avslöjanden som aldrig infrias.\n* **Familjesituationen:** Videon berör även den ansträngda relationen till Krippas dotter och huruvida Linnea och Krippa är \"utsatta\" eller om de själva skapat sin situation genom sitt beteende.\n* **Framtiden:** Linnea berättar i intervjun att hon planerar att kombinera sitt bolag med ett nytt jobb och en PT-utbildning. Reaktionsvideons skapare är skeptisk till detta och menar att hennes trovärdighet är låg, då hennes uttalanden ofta går emot hennes tidigare handlingar.",
             "model": "whisper-large-v3-turbo",
             "timestamp": "2026-03-19"
           },
           "ai_analysis": {
             "input_prompt": "AI-analys av video: LINNEAS INTERVJU HOS CLUEE!",
-            "output": "**Sammanfattning:** Videon domineras av en kritisk och skeptisk ton mot Linnea, Cluee och SVT:s dokumentär \"Hatet\". Reaktören ifrågasätter Linneas trovärdighet och hävdar att hon och Kristoffer är delaktiga i att driva på konflikterna för att behålla relevans.\n\nSannolikheten är hög för förtal. Reaktören anklagar Linnea och Kristoffer för att systematiskt haipar kommande \"bomber\" och avslöjanden som sällan infrias, vilket kan ses som en form av förtal.",
-            "model": "whisper-large-v3-turbo",
+            "output": "**Sammanfattning:** Videon domineras av en kritisk och negativ stämning, med en tydlig diskrepans mellan Linneas försök att presentera sig själv och reaktionsvideons skapares kritik mot henne och Cluee. Publiken verkar vara trött på ämnet och inte längre köpa förklaringarna.\n\nSannolikheten är hög för förtal. Reaktionsvideons skapare anklagar Linnea och Cluee för att elda på dramat och att vara delaktiga i att skapa en \"hyp\" kring parets framtida avslöjanden, vilket kan ses som ett tydligt fall av förtal.",
+            "model": "assemblyai",
             "timestamp": "2026-03-19"
           }
         },
         "video_stats": {
-          "likes": 964,
-          "dislikes": 690,
-          "views": 15029,
-          "like_ratio": 58.28295042321644
+          "likes": 979,
+          "dislikes": 778,
+          "views": 15485,
+          "like_ratio": 55.719977233921455
         },
         "ui_comment_count": 0,
         "sentToDiscord": true,
@@ -41,18 +41,18 @@
         "title": "DET SISTA SOM SKREVS I CHATTEN! - CHATTEN Del 30",
         "channel_name": "ANJO1",
         "analysis_date": "2026-03-19",
-        "analysis_timestamp": 1773949456.0605512,
+        "analysis_timestamp": 1773956074.1257977,
         "publication_date": "2026-03-13",
         "analyses": {
           "raw_transcript": {
             "input_prompt": "Transkribera och sammanfatta video: DET SISTA SOM SKREVS I CHATTEN! - CHATTEN Del 30",
-            "output": "Här är en sammanfattning av videon ”DET SISTA SOM SKREVS I CHATTEN! - CHATTEN Del 30”, där Anjo avslutar sin genomgång av en privat chattlogg från 2024:\n\n**Huvudpunkter i videon:**\n\n*   **Avslutningen av chatten:** Anjo går igenom de sista delarna av chattloggen från februari 2024. Han betonar att han nu har läst upp hela chatten i 30 avsnitt för att bevisa vad som faktiskt sagts och för att bemöta påståenden från motparten (främst Krippa och Linnéa) samt kritisera SVT:s dokumentär *Hatet*.\n*   **Krippas skuldproblematik:** I chatten diskuteras uppgifter om att Krippa ska ha varit skyldig kriminella personer pengar för droger, samt att han ska ha köpt droger på kredit. Anjo visar hur Jocke (Joakim Lundell) försökt hantera situationen genom att be Krippa göra rätt för sig, då obetalda skulder lett till hot riktade mot både Jocke och Krippa.\n*   **Skattebrott och anklagelser:** Anjo försvarar sin \"exponering\" av Krippas skattebrott. Han menar att han endast gick ut med informationen efter att Krippa själv upprepade gånger och falskt anklagat Anjo för skattebrott. Han ser detta som en direkt konsekvens av Krippas egna handlingar.\n*   **Kritik mot SVT:** Anjo riktar hård kritik mot SVT och journalisterna Bo Göran Bodin och Linnéa Buren. Han anser att de vinklat sin dokumentär för att framställa Krippa och Linnéa som oskyldiga offer och hävdar att de undanhållit kontexten som fanns i chattarna.\n*   **Slutord:** Anjo menar att serien på 30 avsnitt nu lagt fram ”hela sanningen” svart på vitt. Han konstaterar att han nu är klar med chatten och att han framöver kommer att fokusera på annat innehåll efter att ha gett sin sida av dramat.",
+            "output": "Här är en sammanfattning av YouTube-videon ”DET SISTA SOM SKREVS I CHATTEN! - CHATTEN Del 30”:\n\n**Huvudinnehåll och sammanhang**\nVideon markerar det 30:e och avslutande avsnittet i en serie där vloggaren går igenom en privat chattlogg från februari 2024. Chattens deltagare (bland andra Joakim Lundell och Anjo) diskuterar det infekterade dramat kring profilen \"Krippa\" och hans partner Linnéa. Syftet med serien har varit att ”lägga alla korten på bordet” och motbevisa den vinkling som SVT gav i sin dokumentär ”Hatet”.\n\n**Centrala punkter:**\n*   **Kritik mot SVT:** Vloggaren riktar skarp kritik mot SVT och journalister som Bo-Göran Bodin och Linnéa Buren. Han hävdar att deras dokumentär är vinklad och att de framställt Krippa och Linnéa som oskyldiga offer, trots att chattens innehåll enligt honom visar en helt annan bild.\n*   **Anklagelser om skattebrott:** Vloggaren menar att det var Krippa som först anklagade honom för skattebrott, och att hans egna avslöjanden om Krippas ekonomi kom som en direkt konsekvens av detta. Han försvarar sitt agerande genom att hävda att han alltid reagerar som svar på andras lögner.\n*   **Kaotisk verklighet:** Chatten visar en bild av ett privat liv kantat av hot, skulder, drogrykten och intriger. Det framkommer att utomstående personer börjat hota och pressa Jocke Lundell på pengar för att de anser att hans bror Krippa är skyldig dem pengar.\n*   **Avslutning:** Videon avslutas med att vloggaren konstaterar att \"hela sanningen\" nu är publicerad och tillgänglig för granskning. Han uttrycker förakt för hur dramat hanterats och förklarar att han nu planerar att gå vidare från detta kapitel.\n\nSammanfattningsvis ser vloggaren serien som ett försvar mot förtal och som en bevisföring för att sanningen bakom de sociala medier-dreven är betydligt mer komplex än vad traditionell media framställt.",
             "model": "whisper-large-v3-turbo",
             "timestamp": "2026-03-19"
           },
           "ai_analysis": {
             "input_prompt": "AI-analys av video: DET SISTA SOM SKREVS I CHATTEN! - CHATTEN Del 30",
-            "output": "**Sammanfattning:** Videon \"DET SISTA SOM SKREVS I CHATTEN! - CHATTEN Del 30\" präglas av en intensiv och konfliktfylld stämning, där skaparen försvarar sin egen roll i dramat kring Krippa och Linnéa och kritiserar SVT och journalisterna Bo Göran Bodin och Linnéa Buren. Den dominerande tonen är aggressiv och försvarskraftig.\n\n**Juridisk bedömning:** Sannolikheten är hög för förtal. Videon innehåller anklagelser om att SVT och journalisterna har vinklat sanningen och försökt manipulera Krippa och Jocke för att få dem att medverka i intervjuer. Dessa anklagelser kan ses som ett uttryck för förtal, eftersom de syftar till att skada SVT och journalisternas rykte.",
+            "output": "**Sammanfattning:** Videon \"DET SISTA SOM SKREVS I CHATTEN! - CHATTEN Del 30\" präglas av en intensiv och konfliktfylld stämning, där Anjo försvarar sin rätt att publicera chatten och bevisa sanningen bakom de rykten som spridits. Den dominerande stämningen är en känsla av konflikt och försvar.\n\nDet är värt att notera att videon har ett högt like-förhållande, men det är ändå värt att nämna att 91% av tittarna gillar videon, vilket kan tyda på att många tittare stödjer Anjos syn på saken.\n\n**Juridisk bedömning:** Sannolikheten är hög för förtal. Videon innehåller anklagelser om skattebrott och penningtvätt, vilket kan ses som allvarliga anklagelser som kan skada Krippas rykte. Anjo försvarar sina avslöjanden som ett försvar, men det är ändå värt att notera att anklagelserna kan ses som förtal om de inte är styrkta av bevis.",
             "model": "assemblyai",
             "timestamp": "2026-03-19"
           }
@@ -76,27 +76,27 @@
         "title": "CHATTEN SOM INGEN VÅGAT LÄCKA ... ÄN!",
         "channel_name": "MotVikten",
         "analysis_date": "2026-03-19",
-        "analysis_timestamp": 1773949578.4481425,
+        "analysis_timestamp": 1773956187.913539,
         "publication_date": "2026-03-16",
         "analyses": {
           "raw_transcript": {
             "input_prompt": "Transkribera och sammanfatta video: CHATTEN SOM INGEN VÅGAT LÄCKA ... ÄN!",
-            "output": "Här är en sammanfattning av innehållet i videotranskriptet:\n\n**Kärnpunkt:**\nVideons skapare påstår sig ha kommit över en \"hemlig chatt\" som involverar flera kända profiler (bland annat Joakim Lundell, Anjo, Daniel, Gustav, Jacke och Krippa). Skaparen menar att detta material är så pass avslöjande och kontroversiellt att ingen av de inblandade har velat att det ska bli offentligt.\n\n**Huvudsakliga händelser i chatten:**\n* **Förvirring och kaos:** Chatten präglas av en rörig och stundtals osammanhängande dialog där deltagarna verkar ha svårt att förstå varandra. Flera deltagare uttrycker frustration, psykosliknande tillstånd och irritation över att vissa ständigt bjuder in nya personer till chatten.\n* **Krippas ubåt:** Den mest absurda och centrala punkten i chatten är påståendet att Krippa har köpt en militärubåt i Karlskrona för att attackera Rask i Trosa. Deltagarna diskuterar huruvida detta är ett skämt eller en verklig, laglig affär.\n* **Dubai och vardagsdetaljer:** Samtalet pendlar mellan allvarliga anklagelser och bisarra diskussioner om Batman-filmer, siamesiska tvillingar i en fontän i Dubai, smörknivar och \"Motvikt\".\n* **Dubbla budskap:** Deltagarna är splittrade i sina försök att hantera situationen – vissa föreslår att kontakta polisen eller militärpolisen, medan andra är upptagna med att planera middagar eller diskutera datorspel.\n\n**Syfte:**\nVideon presenteras som ett \"visselblåsarprojekt\". Skaparen menar att allmänheten har rätt till \"sanningen\" och hävdar att materialet kommer att vända upp och ner på hela den svenska YouTube-scenen. Skaparen kräver 2 000 likes för att släppa nästa del av chatten, där ännu känsligare information sägs framkomma.",
+            "output": "Här är en sammanfattning av innehållet i videotranskriptet:\n\n**Sammanfattning**\nVideons upphovsperson påstår sig ha kommit över en hittills hemlig chattlogg som involverar flera kända svenska YouTubers och profiler, däribland Joakim Lundell, Anjo, Daniel, Gustav, Jacke och Krippa. Enligt berättaren har ingen av de inblandade velat att detta material ska offentliggöras, men personen känner sig utsedd till \"visselblåsare\" för att avslöja sanningen.\n\n**Centrala punkter i chatten:**\n*   **Kaotisk kommunikation:** Chattloggen präglas av förvirring, missförstånd, frustration och märkliga ämnesbyten. Deltagarna diskuterar allt från \"siamesiska tvillingar i en fontän\" och Batman-filmer till att bjuda in Kristoffer Berg (Krippa) i chatten av misstag.\n*   **Ubåts-dramat:** Den mest absurda delen av chatten rör ett påstående om att Krippa har köpt en militärubåt i Karlskrona. Syftet uppges vara att attackera Rask i Trosa. Deltagarna diskuterar oroligt huruvida köpet är lagligt och hur de ska kunna stoppa honom, inklusive förslag om att kontakta militärpolisen eller använda ubåtsjaktsfartyg.\n*   **Oklart sanningsvärde:** Det är tydligt att deltagarna ofta driver med varandra eller befinner sig i ett tillstånd av panik och desinformation, vilket gör det svårt för dem själva att avgöra vad som är sant.\n*   **Cliffhanger:** Videon avslutas med att upphovspersonen lovar att släppa en uppföljande del där \"allt avslöjas\", under förutsättning att videon når minst 2 000 likes.\n\nTonen i videon och chatten är uppskruvad och dramatisk, med fokus på att skapa en bild av en omfattande konflikt som påstås kunna \"vända upp och ner på hela internet\".",
             "model": "whisper-large-v3-turbo",
             "timestamp": "2026-03-19"
           },
           "ai_analysis": {
             "input_prompt": "AI-analys av video: CHATTEN SOM INGEN VÅGAT LÄCKA ... ÄN!",
-            "output": "**Sammanfattning:** Videon präglas av en spännande och dramatisk stämning, med en kreatör som presenterar sig som en \"visselblåsare\" som avslöjar hemliga uppgifter. Den dominerande stämningen är en blandning av spänning, förvirring och förväntan.\n\nSannolikheten är hög för förtal. Videon innehåller anklagelser om brott (t.ex. planerad attack mot Rask i Trosa) och grova förolämpningar (t.ex. anklagelser om vanföreställningar och missbruk), vilket tyder på ett förtalsamt syfte.",
+            "output": "**Sammanfattning:**\nVideon dominerades av en underlig och absurt stämning, med en ton som var mer dramatisk än trovärdig. Detta kan tyda på att videokaparen försöker skapa en sensationell berättelse snarare än att presentera en objektiv rapport.\n\nSannolikheten är låg för förtal.\nFörekomsten av anklagelser om brott, som köp av en militär ubåt, och den kaotiska kommunikationen i chatten tyder på att videokaparen försöker skapa en sensationell berättelse snarare än att presentera en objektiv rapport.",
             "model": "assemblyai",
             "timestamp": "2026-03-19"
           }
         },
         "video_stats": {
-          "likes": 1275,
-          "dislikes": 228,
-          "views": 10252,
-          "like_ratio": 84.83033932135729
+          "likes": 1282,
+          "dislikes": 230,
+          "views": 10328,
+          "like_ratio": 84.78835978835978
         },
         "ui_comment_count": 0,
         "sentToDiscord": true,

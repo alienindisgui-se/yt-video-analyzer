@@ -2751,35 +2751,44 @@ def process_single_video(v_id):
             logging.warning(
                 f"Skipping members-only/private video {v_id} - detected during initial fetch (zero engagement but title available)"
             )
+            print(f"PROCESSING_SUCCESS:{v_id}")
             return
         else:
             # Process the single video
             logging.info(f"Processing video {v_id} from channel {channel_name}.")
+
+            # Always create video entry and save metadata for any processed video
+            analysis_stats = load_analysis_stats()
+            video_entry = find_or_create_video(
+                analysis_stats, channel_name, v_id, title, publication_date
+            )
+
+            # Save video metadata
+            video_entry["video_stats"] = video_stats
+            video_entry["ui_comment_count"] = ui_count
+
+            # Save basic video data immediately
+            save_analysis_stats(analysis_stats)
 
             # Check for members-only/private content detection (late detection from transcription)
             if transcript_text == "MEMBERS_ONLY":
                 logging.warning(
                     f"Skipping members-only/private video {v_id} - content access restricted"
                 )
+                print(f"PROCESSING_SUCCESS:{v_id}")
                 return
             elif title is None:
                 logging.warning(f"Skipping video {v_id} due to scraping failure.")
+                print(f"PROCESSING_SUCCESS:{v_id}")
                 return
             elif transcript_text == "TRANSCRIPTION_FAILED":
                 logging.warning(
                     f"Skipping video {v_id} - transcription failed and is required for analysis"
                 )
+                # Still print completion marker since processing was attempted
+                print(f"PROCESSING_SUCCESS:{v_id}")
                 return
             else:
-                # Always create video entry and save metadata for any processed video
-                analysis_stats = load_analysis_stats()
-                video_entry = find_or_create_video(
-                    analysis_stats, channel_name, v_id, title, publication_date
-                )
-
-                # Save video metadata
-                video_entry["video_stats"] = video_stats
-                video_entry["ui_comment_count"] = ui_count
 
                 # Save summarized transcript to analyses object if available
                 if transcript_text and transcript_text != "TRANSCRIPTION_FAILED":
