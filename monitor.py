@@ -2720,12 +2720,14 @@ def process_single_video(v_id):
         # Check if video is old enough (at least 24 hours)
         if not _is_video_old_enough(publication_date):
             logging.info(f"Skipping video {v_id} - published less than 24 hours ago")
+            print(f"PROCESSING_SUCCESS:{v_id}")
             return
 
         # Normalize channel name to expected identifier
         normalized_channel_name = normalize_channel_name(channel_name)
         if not normalized_channel_name:
             logging.warning(f"Could not normalize channel name '{channel_name}' for video {v_id}")
+            print(f"PROCESSING_SUCCESS:{v_id}")
             return
         
         logging.info(f"Normalized channel name '{channel_name}' to '{normalized_channel_name}' for video {v_id}")
