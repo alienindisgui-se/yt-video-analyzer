@@ -1,7 +1,7 @@
 name: YouTube Video Analysis
 
 on:
-  schedule:
+  # schedule:
     # - cron: '*/30 * * * *'  # Runs at minute 0 and 30 of every hour
   workflow_dispatch:       # Allow manual trigger
 
