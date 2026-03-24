@@ -76,13 +76,12 @@
     "videos": []
   },
   "_queue_state": {
-    "pending_queue": [
-      "MxZGK-i9Q1U"
-    ],
+    "pending_queue": [],
     "completed_ids": [
       "sO6-d4TTaXA",
       "CsocaOQjm8M",
-      "zn_Ixv7xVVI"
+      "zn_Ixv7xVVI",
+      "MxZGK-i9Q1U"
     ],
     "fetch_depth": 1,
     "current_processing": null
