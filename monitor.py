@@ -885,7 +885,9 @@ def _extract_video_ids(page, max_videos, completed_videos, channel_name, fetch_d
         video_elements = page.locator(locator_selector)
         total_videos = video_elements.count()
         
-        for i in range(min(total_videos, max_videos * fetch_depth)):  # Check more elements based on depth
+        # Iterate backwards to get oldest videos first
+        max_index = min(total_videos, max_videos * fetch_depth)
+        for i in range(max_index - 1, -1, -1):
             if videos_found >= max_videos:
                 break
             
@@ -2549,9 +2551,7 @@ def _prepare_analysis_prompt(title, summarized_transcript):
             **Instruktioner:**
             
             1. **Sammanfattning:** Max 2 meningar om den dominerande stämningen.
-            Nämn ENDAST like/dislike-förhållandet om likes understiger 90%, och väv då in det organiskt för att förklara diskrepans eller förstärka kritiken.
-            Om likes är 90% eller högre, ignorera siffran helt.
-            
+
             **Juridisk bedömning:** Inled alltid med meningen 'Sannolikheten är [hög/låg] för förtal.'
             Följ upp med max en mening som konkret motiverar bedömningen (t.ex. förekomst av anklagelser om brott, grova förolämpningar eller koordinerade drev).
             
@@ -2567,6 +2567,14 @@ def _prepare_analysis_prompt(title, summarized_transcript):
             **Data:**
             Transkription (AI-sammanfattning): {summarized_transcript}
     """
+    
+    # Log the formatted prompt for debugging
+    print("=== FORMATTED AI ANALYSIS PROMPT ===")
+    print(f"Title: {title}")
+    print(f"Prompt length: {len(prompt)} characters")
+    print(f"Full prompt:\n{prompt}")
+    print("=== END FORMATTED AI ANALYSIS PROMPT ===")
+    
     return prompt.format(summarized_transcript=summarized_transcript)
 
 
@@ -2576,11 +2584,11 @@ def _perform_ai_analysis(v_id, title, summarized_transcript):
         prompt = _prepare_analysis_prompt(title, summarized_transcript)
         
         # Log input for debugging
-        logging.info("=== AI ANALYSIS INPUT ===")
-        logging.info(f"Video ID: {v_id}")
-        logging.info(f"Title: {title}")
-        logging.info(f"Prompt length: {len(prompt)} characters")
-        logging.info("=== END AI ANALYSIS INPUT ===")
+        print("=== AI ANALYSIS INPUT ===")
+        print(f"Video ID: {v_id}")
+        print(f"Title: {title}")
+        print(f"Prompt length: {len(prompt)} characters")
+        print("=== END AI ANALYSIS INPUT ===")
         
         # Call Groq API
         response = model_manager.client.chat.completions.create(
@@ -2615,21 +2623,21 @@ def _store_analysis_results(v_id, channel_name, title, publication_date, full_te
         analysis_stats, channel_name, v_id, title, publication_date
     )
     
-    # Add transcription analysis
+    # Add transcription analysis (store the full transcript)
     add_analysis_to_video(
         video_entry,
         "raw_transcript",
-        _prepare_analysis_prompt(title, summarize_transcript(full_text, title)),
+        f"Transkribera och sammanfatta video: {title}",
         full_text if full_text else "No transcription available",
-        AI_ANALYSIS_MODEL,
+        "whisper-large-v3-turbo",
     )
     
-    # Add AI analysis
+    # Add AI analysis (store the already-generated AI analysis)
     if ai_analysis:
         add_analysis_to_video(
             video_entry,
             "ai_analysis",
-            _prepare_analysis_prompt(title, summarize_transcript(full_text, title)),
+            f"AI-analys av video: {title}",
             ai_analysis,
             AI_ANALYSIS_MODEL,
         )
@@ -2676,7 +2684,7 @@ def get_transcript_and_analysis(
         
         # AI Analysis
         if full_text and full_text != "TRANSCRIPTION_FAILED":
-            logging.info(f"Proceeding with AI analysis for {v_id}...")
+            print(f"Proceeding with AI analysis for {v_id}...")
             
             # Summarize long transcripts to fit token limits
             summarized_transcript = summarize_transcript(full_text, title)
@@ -2699,10 +2707,16 @@ def get_transcript_and_analysis(
 def process_single_video(v_id):
     """Process a single video (called from subprocess)"""
     try:
-        # Setup minimal logging for subprocess
-        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+        # Setup logging for subprocess - use basicConfig to ensure logs go to stdout
+        import sys
+        logging.basicConfig(
+            level=logging.INFO, 
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            stream=sys.stdout  # Ensure logs go to stdout so they can be captured
+        )
         
         # Get video data first to extract channel name
+        logging.info(f"SUBPROCESS DEBUG: Starting video processing for {v_id}")
         (
             title,
             channel_name,
@@ -2716,6 +2730,10 @@ def process_single_video(v_id):
             extracted_channel_name,
             transcription_model,
         ) = get_yt_data(v_id, deep_scrape=True)
+        
+        logging.info(f"SUBPROCESS DEBUG: Got video data for {v_id}")
+        logging.info(f"SUBPROCESS DEBUG: Title: {title}")
+        logging.info(f"SUBPROCESS DEBUG: AI analysis result: {ai_analysis is not None}")
 
         # Check if video is old enough (at least 24 hours)
         if not _is_video_old_enough(publication_date):
@@ -2968,11 +2986,19 @@ if __name__ == "__main__":
                     __file__,  # This script
                     "--single-video", 
                     v_id
-                ], capture_output=True, text=True, timeout=1200)  # 20 minute timeout
+                ], capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=1200)  # 20 minute timeout
                 
                 if result.returncode == 0:
                     logging.info(f"Successfully processed video {v_id}")
                     processed_count += 1
+                    
+                    # Log subprocess output for debugging
+                    if result.stdout:
+                        logging.info(f"=== SUBPROCESS OUTPUT for {v_id} ===")
+                        for line in result.stdout.strip().split('\n'):
+                            if line.strip():
+                                logging.info(f"SUBPROCESS: {line}")
+                        logging.info(f"=== END SUBPROCESS OUTPUT for {v_id} ===")
                     
                     # Check if Discord message was sent by looking for success marker in output
                     if f"DISCORD_SUCCESS:{v_id}" in result.stdout:

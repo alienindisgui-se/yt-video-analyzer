@@ -2,120 +2,89 @@
   "CarlFredrikAlexanderRask": {
     "videos": [
       {
-        "video_id": "p8tsfpW_uhA",
-        "title": "LINNEAS INTERVJU HOS CLUEE!",
+        "video_id": "sO6-d4TTaXA",
+        "title": "NU ÄR DEN SATANS VÄGGEN BORTA!! ALLT OM TROBO!",
         "channel_name": "CarlFredrikAlexanderRask",
-        "analysis_date": "2026-03-20",
-        "analysis_timestamp": 1774029676.5444255,
-        "publication_date": "2026-03-18",
+        "analysis_date": "2026-03-24",
+        "analysis_timestamp": 1774380807.7810366,
+        "publication_date": "2026-03-22",
         "analyses": {
           "raw_transcript": {
-            "input_prompt": "Transkribera och sammanfatta video: LINNEAS INTERVJU HOS CLUEE!",
-            "output": "Här är en sammanfattning av videotranskriptet där innehållsskaparen reagerar på en intervju mellan Cluee och Linnea:\n\n**Huvudpunkter:**\n\n*   **Linneas situation:** Linnea har blivit friad i en rättsprocess (rörande ekobrott), vilket hon beskriver som en stor lättnad. Hon menar att hon blivit orättvist behandlad och uthängd i sociala medier och av traditionell media.\n*   **Kritik mot dokumentären \"Hatet\":** Diskussionen berör SVT-dokumentären \"Hatet\". Innehållsskaparen kritiserar dokumentärens kvalitet, vinkling och att den enligt honom undviker att adressera att ryktena kring Linnea ursprungligen startades av hennes partner, Kristoffer (Krippa).\n*   **Drama och konflikt:** Innehållsskaparen menar att drama på sociala medier har minskat jämfört med förr. Han anser att Linnea och Krippa är högst delaktiga i att driva draman, trots att de utåt sett hävdar att de vill lämna det bakom sig. Han ifrågasätter deras trovärdighet när de utlovar \"bomber\" och \"sanningar\" som sedan aldrig materialiseras.\n*   **Förhållandet mellan Linnea och Krippa:** Linnea framhåller deras starka relation som en avgörande faktor för att klara av den offentliga pressen. Innehållsskaparen är dock skeptisk till deras agerande, särskilt gällande hur de hanterar rykten och att de enligt honom verkar \"fastna\" i konfliktmönster.\n*   **Cluees roll:** Innehållsskaparen är starkt kritisk till Cluee, som han anser \"boostar\" sin kanal genom att ge utrymme åt problematiska personer och att Cluees egna analyser ofta saknar substans och vinklas på ett sätt som skadar hans egen kanal i längden.\n*   **Slutsats:** Innehållsskaparen ser hela intervjun och paret Linnea/Krippas offentliga framträdanden som ett sätt att sälja en bild snarare än att presentera sanningen, och han uttrycker en frustration över att paret ständigt drar upp nytt drama samtidigt som de påstår sig vilja ha en nystart.",
+            "input_prompt": "Transkribera och sammanfatta video: NU ÄR DEN SATANS VÄGGEN BORTA!! ALLT OM TROBO!",
+            "output": "Här är en sammanfattning av videon där vloggaren berättar om situationen med hyresvärden Trobo och renoveringen av lägenheten:\n\n*   **Konflikt med hyresvärden:** Vloggaren har under ett år legat i fejd med hyresvärden Trobo gällande lägenhetens skick, då de tidigare fakturerat för skador trots att tidigare hyresgäster lämnat lägenheten i sämre skick.\n*   **Väggen är borta:** Trobo ställde som krav för att renovera golv och tapeter att en vägg som vloggaren tidigare godkänt att ha kvar måste rivas. Istället för att anlita hjälp för dyra pengar rev vloggaren väggen själv med hjälp av sin son. Efter att de meddelat Trobo att väggen var borta verkar hyresvärden nu redo att påbörja renoveringen.\n*   **Renoveringsplaner:** Trobo ska byta golv i vardagsrummet och tapetsera/måla i de flesta rum. Vloggaren och partnern Therese planerar att välja murriga, bruna nyanser för att skapa en mysig atmosfär.\n*   **Golvproblematiken:** Vloggaren är frustrerad över att Trobo vägrar byta golv i övriga rum med motiveringen att det är \"originalgolv i ek\" som bör bevaras, trots att golven är slitna och har skador.\n*   **House tour och framtidsvision:** Videon innehåller en rundvandring i lägenheten där vloggaren visar det nu öppna vardagsrummet, köket och övervåningen. Vloggaren ser fram emot att äntligen kunna börja inreda och \"bo in sig\" på riktigt när renoveringen är klar. Vardagsrummet planeras bli ett personligt \"sanctuary\" med mörkt tema, draperi i taket och ljusslingor.\n*   **Familjeliv:** Vloggaren nämner stolt sönernas stora passion för MMA/fighting och berättar om marsvinen som bor i familjens hem.",
             "model": "whisper-large-v3-turbo",
-            "timestamp": "2026-03-20"
+            "timestamp": "2026-03-24"
           },
           "ai_analysis": {
-            "input_prompt": "AI-analys av video: LINNEAS INTERVJU HOS CLUEE!",
-            "output": "**Sammanfattning:** Den dominerande stämningen i videon är kritisk och negativ, med en tydlig ton av missnöje och frustration. Den reagerande kreatören är kritisk till Cluees intervju med Linnea och menar att innehållet är ointressant och att Cluee upprepar samma frågor som tidigare diskuterats.\n\nSannolikheten är hög för förtal. Den reagerande kreatören anklagar Cluee för att aktivt skada sin egen kanal genom att ge plattform åt personer som tittarna är trötta på, vilket kan ses som en form av förtal.",
+            "input_prompt": "AI-analys av video: NU ÄR DEN SATANS VÄGGEN BORTA!! ALLT OM TROBO!",
+            "output": "**Sammanfattning:** Videon domineras av en känsla av triumf och lättnad, som vloggaren och hans partner Therese känner efter att ha tagit itu med den långdragna konflikten med hyresvärden Trobo. De ser fram emot en omfattande renovering som ska ge dem en mer personlig och mysig lägenhet.\n\n**Juridisk bedömning:** Sannolikheten är låg för förtal. Det förekommer inga anklagelser om brott eller grova förolämpningar mot Trobo, utan snarare en beskrivning av den konflikt som har lösts genom vloggarens och hans sons insats.",
             "model": "whisper-large-v3-turbo",
-            "timestamp": "2026-03-20"
+            "timestamp": "2026-03-24"
           }
         },
         "video_stats": {
-          "likes": 1046,
-          "dislikes": 2163,
-          "views": 18161,
-          "like_ratio": 32.59582424431287
+          "likes": 585,
+          "dislikes": 1319,
+          "views": 10552,
+          "like_ratio": 30.72478991596639
         },
         "ui_comment_count": 0,
         "sentToDiscord": true,
-        "discord_posted_date": "2026-03-20"
+        "discord_posted_date": "2026-03-24"
       }
     ]
   },
   "ANJO1": {
-    "videos": []
+    "videos": [
+      {
+        "video_id": "CsocaOQjm8M",
+        "title": "Bakom kulisserna på kurragömma! - VLOGG",
+        "channel_name": "ANJO1",
+        "analysis_date": "2026-03-24",
+        "analysis_timestamp": 1774381413.9001856,
+        "publication_date": "2026-03-20",
+        "analyses": {
+          "raw_transcript": {
+            "input_prompt": "Transkribera och sammanfatta video: Bakom kulisserna på kurragömma! - VLOGG",
+            "output": "Här är en sammanfattning av vloggen:\n\n* **Vlogg-comeback:** Efter ett halvår av studiovideor bestämmer sig kreatören för att återuppta vloggandet. Han delar med sig av en personlig uppdatering om sin hälsa och berättar att han för första gången sedan 17-årsåldern väger under 100 kg.\n* **Nytt utseende:** Inspirerad av en konstig dröm om rakning, väljer han att raka av sig skägget på sidorna och lämna kvar en mustasch/skägg-kombination, vilket får hans partner att kommentera att han ser betydligt yngre ut.\n* **Bakom kulisserna på ”Kurragömma”:** Kreatören blir inbjuden av Jocke att följa med till Örebro slott för att filma bakom kulisserna på säsong tre av det populära formatet ”Kurragömma”. \n* **Förberedelser:** Vloggen visar resan till Örebro, inköp av stora mängder snacks och pizza till deltagarna på en lokal grossistbutik, samt förberedelser där han klär ut sig till ”polis” för inspelningen.\n* **Inspelningen:** Väl på plats på Örebro slott får tittarna se den storslagna och komplexa miljön där deltagarna ska gömma sig. Det blir en fysiskt ansträngande dag för teamet med många trappor och omfattande sökande i slottets alla skrymslen, inklusive källare och vindar. \n* **Avslutning:** Videon rundas av med att kreatören uttrycker att det var roligt att vara ute på fältet igen och uppmanar tittarna att gilla videon om de vill se mer vlogginnehåll framöver.",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-24"
+          },
+          "ai_analysis": {
+            "input_prompt": "AI-analys av video: Bakom kulisserna på kurragömma! - VLOGG",
+            "output": "**Sammanfattning:** Videon domineras av en positiv och uppmuntrande stämning, där influencern delar med sig av sin personliga viktresa och glädjen över att vara ute på vift igen. Influencerns entusiasm och öppenhet skapar en varm och inbjudande atmosfär.\n\nSannolikheten är låg för förtal. Videon innehåller inga anklagelser om brott eller grova förolämpningar, utan är en personlig och öppen reflektion över influencerns liv och erfarenheter.",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-24"
+          }
+        },
+        "video_stats": {
+          "likes": 1659,
+          "dislikes": 374,
+          "views": 19436,
+          "like_ratio": 81.60354156419085
+        },
+        "ui_comment_count": 0,
+        "sentToDiscord": true,
+        "discord_posted_date": "2026-03-24"
+      }
+    ]
   },
   "MotVikten": {
-    "videos": [
-      {
-        "video_id": "zn_Ixv7xVVI",
-        "title": "TikTok trodde ej att jag var jag ✅ Hjälp andra! ✅ Saudi steppar upp ✅ Mystisk man i trädgård! ✅ m.m",
-        "channel_name": "MotVikten",
-        "analysis_date": "2026-03-20",
-        "analysis_timestamp": 1774029877.863302,
-        "publication_date": "2026-03-19",
-        "analyses": {
-          "raw_transcript": {
-            "input_prompt": "Transkribera och sammanfatta video: TikTok trodde ej att jag var jag ✅ Hjälp andra! ✅ Saudi steppar upp ✅ Mystisk man i trädgård! ✅ m.m",
-            "output": "Här är en sammanfattning av videon:\n\n**Vardag och reflektioner**\n*   Videon inleds med en lugn morgonstund vid \"frukostbordet\". Upphovspersonen reflekterar kring vardagliga händelser, som ett märkligt mynttapp och ett klipp på ett barn som sjunger \"Happy Birthday\", vilket väckte glädje.\n*   En diskussion förs om vikten av att tänka på andra och vara en god medmänniska (\"flockdjur\"). Detta illustreras med en berättelse om en person som insåg sitt eget egoistiska beteende på ett tåg.\n\n**YouTube och kanalinnehåll**\n*   Framtida innehåll inkluderar en Sims-video med dottern och en intervju med Stella från Dumpen.\n*   En uppdatering ges om en tidigare video rörande en \"hemlig chatt\" (om Jocke Lundell, Anjo m.fl.). Han uppmanar tittare att nå 2 000 likes för att publicera del två.\n*   Upphovspersonen berättar om en händelse på TikTok där hen hamnade i en live-sändning och blev anklagad för att vara en \"fejk\" som utgav sig för att vara Motvikt, vilket blev en komisk och märklig erfarenhet.\n\n**Aktuella ämnen**\n*   **Boktips:** Upphovspersonen intervjuar Anneli Wessman om hennes bok *Min resa i Dumpen* och uppmanar tittarna att köpa boken för att stötta hennes viktiga arbete.\n*   **Jocke & Jonna:** Han ber om kreativa idéer på trollerinummer eller \"trick\" som kan utföras med parets vigselringar under deras kommande bröllop.\n*   **Omvärldsbevakning:** Han diskuterar oroligheterna kring Saudiarabien, antisemitism i Sverige och en händelse där en mystisk man setts smyga i en trädgård. Han manar till nyansering och att kunna hålla flera perspektiv i huvudet samtidigt.\n\nVideon avslutas med en uppmaning till tittarna att visa stöd genom tumme upp och prenumerationer för att behålla \"frukostbordet\"-konceptet.",
-            "model": "whisper-large-v3-turbo",
-            "timestamp": "2026-03-20"
-          },
-          "ai_analysis": {
-            "input_prompt": "AI-analys av video: TikTok trodde ej att jag var jag ✅ Hjälp andra! ✅ Saudi steppar upp ✅ Mystisk man i trädgård! ✅ m.m",
-            "output": "**Sammanfattning:** Videon domineras av en lugn och reflekterande stämning, där youtubern delar sina tankar om teknik, moral och vikten av att vara en god medmänniska. Han berättar även om sina planer på att skapa innehåll för sin kanal och delar en inspirerande läsarberättelse.\n\nDet är värt att notera att videon har ett högt like-förhållande, men det är ändå intressant att se hur youtubern försöker engagera sina tittare genom att fråga om kreativa idéer och ber om stöd för en annan person.\n\n**Juridisk bedömning:** Sannolikheten är låg för förtal. Det finns inga anklagelser om brott eller grova förolämpningar i videon, och youtuberns ton är generellt lugn och reflekterande.",
-            "model": "assemblyai",
-            "timestamp": "2026-03-20"
-          }
-        },
-        "video_stats": {
-          "likes": 227,
-          "dislikes": 2,
-          "views": 1409,
-          "like_ratio": 99.12663755458514
-        },
-        "ui_comment_count": 0,
-        "sentToDiscord": true,
-        "discord_posted_date": "2026-03-20"
-      }
-    ]
+    "videos": []
   },
   "Skuldis": {
-    "videos": [
-      {
-        "video_id": "MxZGK-i9Q1U",
-        "title": "Vad säger experterna om CHRIPPA'S dom",
-        "channel_name": "Skuldis",
-        "analysis_date": "2026-03-20",
-        "analysis_timestamp": 1774029933.257211,
-        "publication_date": "2026-03-19",
-        "analyses": {
-          "raw_transcript": {
-            "input_prompt": "Transkribera och sammanfatta video: Vad säger experterna om CHRIPPA'S dom",
-            "output": "Här är en sammanfattning av videons huvudpunkter:\n\n*   **Hovrättens dom:** Influencern \"Krippa\" fick sitt fängelsestraff sänkt från två år och nio månader till ett år och tio månader. Hovrätten ansåg att det inte var bevisat att han haft uppsåt gällande vissa punkter, bland annat främjande av olovligt spel.\n*   **Expertutlåtanden:** Åklagaren Hanna Nilsson uttryckte förvåning och besvikelse över hovrättens bedömning av uppsåtet. Den tidigare överåklagaren Sven-Erik Alhem beskrev domen som \"idel vinning\" för Krippa, då han friades från en åtalspunkt och fick ett betydligt lägre straff än i tingsrätten.\n*   **Ekonomiska konsekvenser:** Utöver fängelsestraffet har Krippa tilldelats näringsförbud i tre år. Trots att skadeståndskravet sänktes kraftigt betonar videons skapare att Krippa fortfarande väntar på konsekvenser från Skatteverket, som sannolikt kommer att kräva skattetillägg på oredovisade inkomster.\n*   **Framtiden för influencers:** Experter, inklusive Leif G.W. Persson, menar att influencers som yrkesgrupp kan förvänta sig hårdare branschkontroller framöver. Skatteverket och banker granskar transaktioner allt noggrannare, vilket gör att det är svårt att undgå upptäckt vid oredovisade intäkter.\n*   **Kanalens initiativ:** Videons skapare tillkännager en kommande \"intäktslive\" den 5 april där tittare kan bidra med sin tid (visningstimmar) för att generera pengar till en välgörenhetsorganisation. Följarna uppmanas att föreslå mottagare, med förslag som Barncancerfonden eller Missing People. \n*   **Slutsats:** Trots att Krippa fick ett sänkt straff menar skaparen att han inte bör ses som en \"vinnare\", då han fortfarande är dömd för flera brott och att rättsväsendet sannolikt kommer att granska honom igen i framtiden.",
-            "model": "whisper-large-v3-turbo",
-            "timestamp": "2026-03-20"
-          },
-          "ai_analysis": {
-            "input_prompt": "AI-analys av video: Vad säger experterna om CHRIPPA'S dom",
-            "output": "**Sammanfattning:** Videon har en negativ ton med en tydlig kritik mot Hovrättens dom mot Krippa. Många tittare uttrycker besvikelse och frustration över strafflindringen, och vissa ifrågasätter rättssystemets effektivitet.\n\n**Juridisk bedömning:** Sannolikheten är låg för förtal. Domskälen från Hovrätten tyder på att de har bedömt bevisningen kritiskt och inte ansett att Krippa haft uppsåt att främja olovligt spel, vilket minskar risken för förtal.",
-            "model": "whisper-large-v3-turbo",
-            "timestamp": "2026-03-20"
-          }
-        },
-        "video_stats": {
-          "likes": 671,
-          "dislikes": 8,
-          "views": 6791,
-          "like_ratio": 98.8217967599411
-        },
-        "ui_comment_count": 0,
-        "sentToDiscord": true,
-        "discord_posted_date": "2026-03-20"
-      }
-    ]
+    "videos": []
   },
   "_queue_state": {
-    "pending_queue": [],
-    "completed_ids": [
-      "p8tsfpW_uhA",
-      "CsocaOQjm8M",
+    "pending_queue": [
       "zn_Ixv7xVVI",
       "MxZGK-i9Q1U"
     ],
-    "fetch_depth": 3,
+    "completed_ids": [
+      "sO6-d4TTaXA",
+      "CsocaOQjm8M"
+    ],
+    "fetch_depth": 1,
     "current_processing": null
   }
 }

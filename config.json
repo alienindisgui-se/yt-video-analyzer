@@ -21,10 +21,10 @@
     }
   },
   "settings": {
-    "videos_per_run": 4,
+    "videos_per_run": 1,
     "max_comments": 200,
     "gemini_model": "gemini-3.1-flash-lite-preview",
-    "fetch_depth": 3
+    "fetch_depth": 1
   },
   "rate_limits": {}
 }
