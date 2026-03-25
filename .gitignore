@@ -7,3 +7,10 @@ venv/
 ffmpeg_temp/
 tickets/
 *.zip
+
+# SonarQube
+sonar-project.properties
+.sonarlint/
+
+# VS Code
+.vscode/

@@ -109,7 +109,26 @@ def setup_run_logging():
 
 
 # Configuration
-CHANNELS = ["CarlFredrikAlexanderRask", "ANJO1", "MotVikten", "Skuldis"]
+def load_channels_from_env():
+    """Load YouTube channels from environment variable"""
+    channels_str = os.getenv("CHANNELS_LIST", "")
+    
+    if not channels_str:
+        # Fallback to default channels if environment variable is not set
+        logging.warning("CHANNELS_LIST environment variable not set, using default channels")
+        return ["CarlFredrikAlexanderRask", "ANJO1", "MotVikten", "Skuldis"]
+    
+    # Parse comma-separated list and clean up whitespace
+    channels = [channel.strip() for channel in channels_str.split(",") if channel.strip()]
+    
+    if not channels:
+        logging.error("CHANNELS_LIST is empty after parsing, using default channels")
+        return ["CarlFredrikAlexanderRask", "ANJO1", "MotVikten", "Skuldis"]
+    
+    logging.info(f"Loaded {len(channels)} channels from environment: {channels}")
+    return channels
+
+CHANNELS = load_channels_from_env()
 STATE_FILE = "comment_state.json"
 ANALYSIS_STATS_FILE = "analysis_stats.json"  # Track video analysis counts per channel
 CONFIG_FILE = "config.json"
@@ -856,7 +875,6 @@ def _extract_video_ids(page, max_videos, completed_videos, channel_name, fetch_d
         scroll_distance = scroll_count * 2000  # Scroll 2000px each time
         page.evaluate(f"window.scrollBy(0, {scroll_distance})")
         page.wait_for_timeout(2000)  # Wait for videos to load
-        logging.info(f"Scrolled to depth {scroll_count} (target: {target_scroll_depth})")
     
     video_locators = [
         'ytd-rich-item-renderer a[href*="/watch?v="]',
@@ -866,9 +884,10 @@ def _extract_video_ids(page, max_videos, completed_videos, channel_name, fetch_d
     for locator_selector in video_locators:
         video_elements = page.locator(locator_selector)
         total_videos = video_elements.count()
-        logging.info(f"Found {total_videos} video elements with selector: {locator_selector}")
         
-        for i in range(min(total_videos, max_videos * fetch_depth)):  # Check more elements based on depth
+        # Iterate backwards to get oldest videos first
+        max_index = min(total_videos, max_videos * fetch_depth)
+        for i in range(max_index - 1, -1, -1):
             if videos_found >= max_videos:
                 break
             
@@ -881,7 +900,6 @@ def _extract_video_ids(page, max_videos, completed_videos, channel_name, fetch_d
                     latest_videos.append(v_id)
                     video_to_channel[v_id] = channel_name  # Map to actual channel username
                     videos_found += 1
-                    logging.info(f"Added video {v_id} (position {i+1}) from {channel_name}")
                 else:
                     logging.info(f"Skipped completed video {v_id} (position {i+1}) from {channel_name}")
     
@@ -1759,29 +1777,65 @@ def _extract_publication_date(page):
     return UNKNOWN_DATE
 
 
-def _extract_comment_count(page):
-    """Extract UI comment count from page"""
-    ui_count = 0
-    count_locators = [
-        ("#count .yt-core-attributed-string", "yt-core-attributed-string"),
-        ("h2#count yt-formatted-string", "yt-formatted-string"),
-        ("yt-formatted-string.count-text", "count-text"),
-    ]
+def _is_video_old_enough(publication_date):
+    """Check if video is at least 24 hours old"""
+    if publication_date == UNKNOWN_DATE:
+        # If we can't determine the date, assume it's old enough
+        logging.warning("Could not determine publication date, proceeding with analysis")
+        return True
     
-    for selector, desc in count_locators:
-        try:
-            loc = page.locator(selector)
-            loc.wait_for(state="visible", timeout=10000)
-            digits = "".join(
-                filter(str.isdigit, loc.first.text_content().strip())
-            )
-            if digits:
-                ui_count = int(digits)
-                break
-        except TimeoutError:
-            pass
-    
-    return ui_count
+    try:
+        from datetime import datetime
+        today = datetime.now().date()
+        pub_date = datetime.strptime(publication_date, "%Y-%m-%d").date()
+        
+        # Calculate the time difference
+        time_diff = today - pub_date
+        
+        # Check if at least 24 hours have passed (1 day)
+        is_old_enough = time_diff.days >= 1
+        
+        if not is_old_enough:
+            logging.info(f"Video too new (published {publication_date}, {time_diff.days} days ago). Skipping analysis.")
+        else:
+            logging.info(f"Video old enough (published {publication_date}, {time_diff.days} days ago). Proceeding with analysis.")
+            
+        return is_old_enough
+        
+    except Exception as e:
+        logging.warning(f"Error parsing publication date {publication_date}: {e}. Proceeding with analysis.")
+        return True
+
+
+# def _extract_comment_count(page):
+#     """Extract UI comment count from page"""
+#     ui_count = 0
+#     count_locators = [
+#         ("#count .yt-core-attributed-string", "yt-core-attributed-string"),
+#         ("#count yt-formatted-string", "yt-formatted-string"),
+#         (".ytd-comments-header-renderer #count", "yt-core-attributed-string")
+#     ]
+# 
+#     for selector, fallback_class in count_locators:
+#         try:
+#             count_element = page.locator(selector).first
+#             if count_element.count() > 0:
+#                 count_text = count_element.inner_text()
+#                 # Extract number from text like "123 comments" or "1.2K comments"
+#                 import re
+#                 numbers = re.findall(r'[\d,]+', count_text)
+#                 if numbers:
+#                     number_str = numbers[0].replace(',', '')
+#                     if 'K' in count_text.upper():
+#                         ui_count = int(float(number_str) * 1000)
+#                     else:
+#                         ui_count = int(number_str)
+#                 break
+#         except Exception as e:
+#             logging.debug(f"Comment count extraction failed with selector {selector}: {e}")
+#             continue
+# 
+#     return ui_count
 
 
 def _setup_youtube_browser():
@@ -1799,75 +1853,76 @@ def _setup_youtube_browser():
     return browser, page
 
 
-def _sort_comments_newest(page):
-    """Sort comments to newest first"""
-    try:
-        page.evaluate("""() => {
-            const btn = document.querySelector('ytd-comments-header-renderer #sort-menu');
-            if (btn) btn.click();
-        }""")
-        page.wait_for_timeout(1000)
-
-        page.evaluate("""() => {
-            const items = document.querySelectorAll('ytd-menu-service-item-renderer');
-            if (items.length > 1) items[1].click();
-        }""")
-        page.wait_for_timeout(3000)
-    except Exception as e:
-        logging.warning(
-            f"Failed to sort comments: {e}. Proceeding with default sort."
-        )
-
-
-def _scroll_to_load_comments(page):
-    """Scroll to load all top-level comment threads"""
-    last_thread_count = 0
-    no_change = 0
-    
-    while True:
-        thread_nodes = page.locator("ytd-comment-thread-renderer")
-        current_thread = thread_nodes.count()
-        if current_thread == last_thread_count:
-            no_change += 1
-            if no_change >= 3:
-                break
-        else:
-            no_change = 0
-            last_thread_count = current_thread
-        page.evaluate(SCROLL_SCRIPT)
-        page.wait_for_timeout(5000)
+# def _sort_comments_newest(page):
+#     """Sort comments to newest first"""
+#     try:
+#         page.evaluate("""() => {
+#             const btn = document.querySelector('ytd-comments-header-renderer #sort-menu');
+#             if (btn) btn.click();
+#         """)
+#         page.wait_for_timeout(1000)
+# 
+#         page.evaluate("""() => {
+#             const items = document.querySelectorAll('ytd-menu-service-item-renderer');
+#             if (items.length > 1) items[1].click();
+#         """)
+#         page.wait_for_timeout(3000)
+#         logging.info("Comments sorted to newest first")
+#     except Exception as e:
+#         logging.warning(
+#             f"Failed to sort comments: {e}. Proceeding with default sort."
+#         )
 
 
-def _expand_comment_replies(page):
-    """Expand all comment replies using JavaScript"""
-    max_iterations = 3
-    
-    for i in range(max_iterations):
-        try:
-            clicks_dispatched = page.evaluate("""() => {
-                const buttons = Array.from(document.querySelectorAll('ytd-button-renderer#more-replies button'));
-                let count = 0;
-                for (let btn of buttons) {
-                    if (btn.offsetParent !== null) { 
-                        btn.click();
-                        count++;
-                    }
-                }
-                return count;
-            }""")
+# def _scroll_to_load_comments(page):
+#     """Scroll to load all top-level comment threads"""
+#     last_thread_count = 0
+#     no_change = 0
+#     
+#     while True:
+#         thread_nodes = page.locator("ytd-comment-thread-renderer")
+#         current_thread = thread_nodes.count()
+#         if current_thread == last_thread_count:
+#             no_change += 1
+#             if no_change >= 3:
+#                 break
+#         else:
+#             no_change = 0
+#             last_thread_count = current_thread
+#         page.evaluate(SCROLL_SCRIPT)
+#         page.wait_for_timeout(5000)
 
-            if clicks_dispatched == 0:
-                break
 
-            page.wait_for_timeout(4000)
-            page.evaluate(SCROLL_SCRIPT)
-            page.wait_for_timeout(2000)
-
-        except Exception as e:
-            logging.warning(
-                f"Iteration {i + 1} JS click failed: {str(e).splitlines()[0]}"
-            )
-            break
+# def _expand_comment_replies(page):
+#     """Expand all comment replies using JavaScript"""
+#     max_iterations = 3
+#     
+#     for i in range(max_iterations):
+#         try:
+#             clicks_dispatched = page.evaluate("""() => {
+#                 const buttons = Array.from(document.querySelectorAll('ytd-button-renderer#more-replies button'));
+#                 let count = 0;
+#                 for (let btn of buttons) {
+#                     if (btn.offsetParent !== null) { 
+#                         btn.click();
+#                         count++;
+#                     }
+#                 }
+#                 return count;
+#             """)
+# 
+#             if clicks_dispatched == 0:
+#                 break
+# 
+#             page.wait_for_timeout(4000)
+#             page.evaluate(SCROLL_SCRIPT)
+#             page.wait_for_timeout(2000)
+# 
+#         except Exception as e:
+#             logging.warning(
+#                 f"Iteration {i + 1} JS click failed: {str(e).splitlines()[0]}"
+#             )
+#             break
 
 
 def _is_restricted_content(video_stats, title):
@@ -1910,7 +1965,7 @@ def _scrape_video_metadata(page, v_id):
     title = _extract_video_title(page)
     channel_name = _extract_channel_name(page, v_id)
     publication_date = _extract_publication_date(page)
-    ui_count = _extract_comment_count(page)
+    ui_count = 0  # Comment: Comment count extraction disabled
     
     return {
         "title": title,
@@ -1923,28 +1978,22 @@ def _scrape_video_metadata(page, v_id):
 
 def _perform_deep_scrape(page, v_id, title, channel_name, publication_date, deep_scrape):
     """Perform deep scraping of comments and transcript"""
-    ui_count = _extract_comment_count(page)
-    comments = {}
+    ui_count = 0  # Comment: Comment count extraction disabled
+    comments = {}  # Comment: Comment extraction disabled
     
     if deep_scrape:
         logging.info(
-            f"Starting scrape for '{title}'. UI reports ~{ui_count} comments."
+            f"Starting scrape for '{title}'. Comment analysis disabled."
         )
 
-        # Sort comments to newest first
-        _sort_comments_newest(page)
-
-        # Phase 1: Load all top-level threads by scrolling
-        _scroll_to_load_comments(page)
-
-        # Phase 2: Expand replies
-        _expand_comment_replies(page)
+        # Comment: Comment sorting and extraction disabled
+        # _sort_comments_newest(page)
+        # _scroll_to_load_comments(page)
+        # _expand_comment_replies(page)
 
         logging.info(
-            f"Extracted {len(comments)} unique comments after deduplication."
+            "Comment extraction disabled - skipping comment analysis."
         )
-        if ui_count == 0 and len(comments) > 0:
-            ui_count = len(comments)
 
         # Get transcript and analysis
         transcript_text, ai_analysis, ai_model, transcription_model = (
@@ -2496,30 +2545,36 @@ def _attempt_transcription(audio_filepath, v_id, file_size):
 
 def _prepare_analysis_prompt(title, summarized_transcript):
     """Prepare AI analysis prompt with transcript content"""
-    prompt = f"""Du är en klinisk medieanalytiker.
-            Leverera en rak och kompakt analys av videon "{title}".
-            Var objektiv men 'hård'.
-            **Instruktioner:**
-            
-            1. **Sammanfattning:** Max 2 meningar om den dominerande stämningen.
-            Nämn ENDAST like/dislike-förhållandet om likes understiger 90%, och väv då in det organiskt för att förklara diskrepans eller förstärka kritiken.
-            Om likes är 90% eller högre, ignorera siffran helt.
-            
-            **Juridisk bedömning:** Inled alltid med meningen 'Sannolikheten är [hög/låg] för förtal.'
-            Följ upp med max en mening som konkret motiverar bedömningen (t.ex. förekomst av anklagelser om brott, grova förolämpningar eller koordinerade drev).
-            
-            **KRITISKT - FÖLJ EXAKT:**
-            - ABSOLUT INGA think-blocks (```), resonemang eller tankprocesser
-            - VISA INTE DITT TÄNKANDE - ge bara slutgiltig analys
-            - Använd INGEN markdown-formatering eller specialtecken
-            - Fetmarkera ENDAST de inledande orden (**Sammanfattning:** och **Juridisk bedömning:**)
-            - Inga listor, inga rubriker, inga kursiveringar
-            - Ge svaret som REN TEXT utan några formateringselement
-            - BÖRJA DIREKT med analysen, ingen inlednin
-            
-            **Data:**
-            Transkription (AI-sammanfattning): {summarized_transcript}
-    """
+    prompt = f"""Du är en klinisk och objektiv medieanalytiker med expertis inom svensk förtalslagstiftning.
+        Din uppgift är att leverera en rak och kompakt analys av videon "{title}". Var objektiv men 'hård'.
+
+        INSTRUKTION FÖR FÖRTALSBEDÖMNING:
+        Observera att om influencern/kreatören diskuterar händelser som redan är allmänt kända och rapporterade i etablerade nyhetsmedier, minskar sannolikheten för förtal avsevärt. Om påståendena verkar handla om aktuella nyheter, sök online för att bekräfta om detta är allmänt känt och väg in det i din bedömning.
+        
+        FORMATMALL - FÖLJ EXAKT:
+        - BÖRJA DIREKT med analysen, absolut ingen inledningsfras.
+        - Svaret MÅSTE bestå av exakt två stycken.
+        - Du får ENDAST använda markdown för att fetmarkera startorden (se nedan). Ingen annan formatering, inga listor, inga specialtecken.
+        - INGA synliga tankeprocesser, resonemang eller code-blocks. Ge bara det slutgiltiga resultatet.
+
+        DITT SVAR SKA SE UT EXAKT SÅ HÄR:
+
+        **Sammanfattning:** [Skriv max 3 meningar som sammanfattar videons dominerande stämning och huvudsakliga innehåll.]
+
+        **Juridisk bedömning:** Sannolikheten är [hög/måttlig/låg] för förtal. [Följ upp med max 2 meningar som motiverar bedömningen. Ange specifikt om anklagelserna är allmänt kända via nyhetsmedier, eller om det rör sig om nya anklagelser, grova förolämpningar eller drev.]
+
+        DATA FÖR ANALYS:
+        Transkription (AI-sammanfattning): 
+        {summarized_transcript} 
+        """
+    
+    # Log the formatted prompt for debugging
+    print("=== FORMATTED AI ANALYSIS PROMPT ===")
+    print(f"Title: {title}")
+    print(f"Prompt length: {len(prompt)} characters")
+    print(f"Full prompt:\n{prompt}")
+    print("=== END FORMATTED AI ANALYSIS PROMPT ===")
+    
     return prompt.format(summarized_transcript=summarized_transcript)
 
 
@@ -2529,11 +2584,11 @@ def _perform_ai_analysis(v_id, title, summarized_transcript):
         prompt = _prepare_analysis_prompt(title, summarized_transcript)
         
         # Log input for debugging
-        logging.info("=== AI ANALYSIS INPUT ===")
-        logging.info(f"Video ID: {v_id}")
-        logging.info(f"Title: {title}")
-        logging.info(f"Prompt length: {len(prompt)} characters")
-        logging.info("=== END AI ANALYSIS INPUT ===")
+        print("=== AI ANALYSIS INPUT ===")
+        print(f"Video ID: {v_id}")
+        print(f"Title: {title}")
+        print(f"Prompt length: {len(prompt)} characters")
+        print("=== END AI ANALYSIS INPUT ===")
         
         # Call Groq API
         response = model_manager.client.chat.completions.create(
@@ -2559,7 +2614,7 @@ def _perform_ai_analysis(v_id, title, summarized_transcript):
         return None
 
 
-def _store_analysis_results(v_id, channel_name, title, publication_date, full_text, ai_analysis):
+def _store_analysis_results(v_id, channel_name, title, publication_date, full_text, ai_analysis, summarized_transcript=None):
     """Store analysis results in analysis stats"""
     analysis_stats = load_analysis_stats()
     
@@ -2568,21 +2623,32 @@ def _store_analysis_results(v_id, channel_name, title, publication_date, full_te
         analysis_stats, channel_name, v_id, title, publication_date
     )
     
-    # Add transcription analysis
+    # Add transcription analysis (store the full transcript)
+    transcript_prompt = f"Transkribera och sammanfatta video: {title}"
     add_analysis_to_video(
         video_entry,
         "raw_transcript",
-        _prepare_analysis_prompt(title, summarize_transcript(full_text, title)),
+        transcript_prompt,
         full_text if full_text else "No transcription available",
-        AI_ANALYSIS_MODEL,
+        "whisper-large-v3-turbo",
     )
     
-    # Add AI analysis
+    # Store the summarized transcript if available
+    if summarized_transcript:
+        add_analysis_to_video(
+            video_entry,
+            "summarized_transcript",
+            transcript_prompt,
+            summarized_transcript,
+            "whisper-large-v3-turbo",
+        )
+    
+    # Add AI analysis (store the already-generated AI analysis)
     if ai_analysis:
         add_analysis_to_video(
             video_entry,
             "ai_analysis",
-            _prepare_analysis_prompt(title, summarize_transcript(full_text, title)),
+            f"AI-analys av video: {title}",
             ai_analysis,
             AI_ANALYSIS_MODEL,
         )
@@ -2629,16 +2695,18 @@ def get_transcript_and_analysis(
         
         # AI Analysis
         if full_text and full_text != "TRANSCRIPTION_FAILED":
-            logging.info(f"Proceeding with AI analysis for {v_id}...")
+            print(f"Proceeding with AI analysis for {v_id}...")
             
             # Summarize long transcripts to fit token limits
+            print(f"Summarizing transcript for {v_id}...")
             summarized_transcript = summarize_transcript(full_text, title)
+            print(f"Transcript summarized for {v_id} (length: {len(summarized_transcript)} characters)")
             
             # Perform AI analysis
             ai_analysis = _perform_ai_analysis(v_id, title, summarized_transcript)
             
             # Store results
-            _store_analysis_results(v_id, channel_name, title, publication_date, full_text, ai_analysis)
+            _store_analysis_results(v_id, channel_name, title, publication_date, full_text, ai_analysis, summarized_transcript)
         else:
             ai_analysis = None
         
@@ -2652,10 +2720,16 @@ def get_transcript_and_analysis(
 def process_single_video(v_id):
     """Process a single video (called from subprocess)"""
     try:
-        # Setup minimal logging for subprocess
-        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+        # Setup logging for subprocess - use basicConfig to ensure logs go to stdout
+        import sys
+        logging.basicConfig(
+            level=logging.INFO, 
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            stream=sys.stdout  # Ensure logs go to stdout so they can be captured
+        )
         
         # Get video data first to extract channel name
+        logging.info(f"SUBPROCESS DEBUG: Starting video processing for {v_id}")
         (
             title,
             channel_name,
@@ -2669,11 +2743,22 @@ def process_single_video(v_id):
             extracted_channel_name,
             transcription_model,
         ) = get_yt_data(v_id, deep_scrape=True)
+        
+        logging.info(f"SUBPROCESS DEBUG: Got video data for {v_id}")
+        logging.info(f"SUBPROCESS DEBUG: Title: {title}")
+        logging.info(f"SUBPROCESS DEBUG: AI analysis result: {ai_analysis is not None}")
+
+        # Check if video is old enough (at least 24 hours)
+        if not _is_video_old_enough(publication_date):
+            logging.info(f"Skipping video {v_id} - published less than 24 hours ago")
+            print(f"PROCESSING_SUCCESS:{v_id}")
+            return
 
         # Normalize channel name to expected identifier
         normalized_channel_name = normalize_channel_name(channel_name)
         if not normalized_channel_name:
             logging.warning(f"Could not normalize channel name '{channel_name}' for video {v_id}")
+            print(f"PROCESSING_SUCCESS:{v_id}")
             return
         
         logging.info(f"Normalized channel name '{channel_name}' to '{normalized_channel_name}' for video {v_id}")
@@ -2696,35 +2781,44 @@ def process_single_video(v_id):
             logging.warning(
                 f"Skipping members-only/private video {v_id} - detected during initial fetch (zero engagement but title available)"
             )
+            print(f"PROCESSING_SUCCESS:{v_id}")
             return
         else:
             # Process the single video
             logging.info(f"Processing video {v_id} from channel {channel_name}.")
+
+            # Always create video entry and save metadata for any processed video
+            analysis_stats = load_analysis_stats()
+            video_entry = find_or_create_video(
+                analysis_stats, channel_name, v_id, title, publication_date
+            )
+
+            # Save video metadata
+            video_entry["video_stats"] = video_stats
+            video_entry["ui_comment_count"] = ui_count
+
+            # Save basic video data immediately
+            save_analysis_stats(analysis_stats)
 
             # Check for members-only/private content detection (late detection from transcription)
             if transcript_text == "MEMBERS_ONLY":
                 logging.warning(
                     f"Skipping members-only/private video {v_id} - content access restricted"
                 )
+                print(f"PROCESSING_SUCCESS:{v_id}")
                 return
             elif title is None:
                 logging.warning(f"Skipping video {v_id} due to scraping failure.")
+                print(f"PROCESSING_SUCCESS:{v_id}")
                 return
             elif transcript_text == "TRANSCRIPTION_FAILED":
                 logging.warning(
                     f"Skipping video {v_id} - transcription failed and is required for analysis"
                 )
+                # Still print completion marker since processing was attempted
+                print(f"PROCESSING_SUCCESS:{v_id}")
                 return
             else:
-                # Always create video entry and save metadata for any processed video
-                analysis_stats = load_analysis_stats()
-                video_entry = find_or_create_video(
-                    analysis_stats, channel_name, v_id, title, publication_date
-                )
-
-                # Save video metadata
-                video_entry["video_stats"] = video_stats
-                video_entry["ui_comment_count"] = ui_count
 
                 # Save summarized transcript to analyses object if available
                 if transcript_text and transcript_text != "TRANSCRIPTION_FAILED":
@@ -2780,11 +2874,12 @@ def process_single_video(v_id):
                     save_queue_state(queue_state)
 
                 # Send Discord message if we have valid analysis data
-                if (
-                    ai_analysis
-                    and transcript_text
-                    and transcript_text != "TRANSCRIPTION_FAILED"
-                ):
+                has_ai_analysis = bool(ai_analysis)
+                has_transcript = bool(transcript_text and transcript_text != "TRANSCRIPTION_FAILED")
+                
+                logging.info(f"Discord eligibility check for {v_id}: ai_analysis={has_ai_analysis}, transcript_valid={has_transcript}")
+                
+                if has_ai_analysis and has_transcript:
                     logging.info(f"Sending Discord message for {v_id}")
 
                     # Send to Discord
@@ -2821,6 +2916,9 @@ def process_single_video(v_id):
                     logging.warning(
                         f"Skipping Discord message for {v_id} - missing required data (ai_analysis: {bool(ai_analysis)}, transcript: {bool(transcript_text and transcript_text != 'TRANSCRIPTION_FAILED')})"
                     )
+
+                    # Still print completion marker since processing succeeded
+                    print(f"PROCESSING_SUCCESS:{v_id}")
 
                 # Save final analysis stats - this must happen regardless of Discord status
                 save_analysis_stats(analysis_stats)
@@ -2901,11 +2999,19 @@ if __name__ == "__main__":
                     __file__,  # This script
                     "--single-video", 
                     v_id
-                ], capture_output=True, text=True, timeout=1200)  # 20 minute timeout
+                ], capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=1200)  # 20 minute timeout
                 
                 if result.returncode == 0:
                     logging.info(f"Successfully processed video {v_id}")
                     processed_count += 1
+                    
+                    # Log subprocess output for debugging
+                    if result.stdout:
+                        logging.info(f"=== SUBPROCESS OUTPUT for {v_id} ===")
+                        for line in result.stdout.strip().split('\n'):
+                            if line.strip():
+                                logging.info(f"SUBPROCESS: {line}")
+                        logging.info(f"=== END SUBPROCESS OUTPUT for {v_id} ===")
                     
                     # Check if Discord message was sent by looking for success marker in output
                     if f"DISCORD_SUCCESS:{v_id}" in result.stdout:
