@@ -21,7 +21,7 @@
   },
   "settings": {
     "videos_per_run": 1,
-    "fetch_depth": 5
+    "fetch_depth": 10
   },
   "rate_limits": {}
 }
