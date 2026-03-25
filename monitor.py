@@ -2545,28 +2545,28 @@ def _attempt_transcription(audio_filepath, v_id, file_size):
 
 def _prepare_analysis_prompt(title, summarized_transcript):
     """Prepare AI analysis prompt with transcript content"""
-    prompt = f"""Du är en klinisk medieanalytiker.
-            Leverera en rak och kompakt analys av videon "{title}".
-            Var objektiv men 'hård'.
-            **Instruktioner:**
-            
-            1. **Sammanfattning:** Max 2 meningar om den dominerande stämningen.
+    prompt = f"""Du är en klinisk och objektiv medieanalytiker med expertis inom svensk förtalslagstiftning.
+        Din uppgift är att leverera en rak och kompakt analys av videon "{title}". Var objektiv men 'hård'.
 
-            **Juridisk bedömning:** Inled alltid med meningen 'Sannolikheten är [hög/låg] för förtal.'
-            Följ upp med max en mening som konkret motiverar bedömningen (t.ex. förekomst av anklagelser om brott, grova förolämpningar eller koordinerade drev).
-            
-            **KRITISKT - FÖLJ EXAKT:**
-            - ABSOLUT INGA think-blocks (```), resonemang eller tankprocesser
-            - VISA INTE DITT TÄNKANDE - ge bara slutgiltig analys
-            - Använd INGEN markdown-formatering eller specialtecken
-            - Fetmarkera ENDAST de inledande orden (**Sammanfattning:** och **Juridisk bedömning:**)
-            - Inga listor, inga rubriker, inga kursiveringar
-            - Ge svaret som REN TEXT utan några formateringselement
-            - BÖRJA DIREKT med analysen, ingen inlednin
-            
-            **Data:**
-            Transkription (AI-sammanfattning): {summarized_transcript}
-    """
+        INSTRUKTION FÖR FÖRTALSBEDÖMNING:
+        Observera att om influencern/kreatören diskuterar händelser som redan är allmänt kända och rapporterade i etablerade nyhetsmedier, minskar sannolikheten för förtal avsevärt. Om påståendena verkar handla om aktuella nyheter, sök online för att bekräfta om detta är allmänt känt och väg in det i din bedömning.
+        
+        FORMATMALL - FÖLJ EXAKT:
+        - BÖRJA DIREKT med analysen, absolut ingen inledningsfras.
+        - Svaret MÅSTE bestå av exakt två stycken.
+        - Du får ENDAST använda markdown för att fetmarkera startorden (se nedan). Ingen annan formatering, inga listor, inga specialtecken.
+        - INGA synliga tankeprocesser, resonemang eller code-blocks. Ge bara det slutgiltiga resultatet.
+
+        DITT SVAR SKA SE UT EXAKT SÅ HÄR:
+
+        **Sammanfattning:** [Skriv max 3 meningar som sammanfattar videons dominerande stämning och huvudsakliga innehåll.]
+
+        **Juridisk bedömning:** Sannolikheten är [hög/måttlig/låg] för förtal. [Följ upp med max 2 meningar som motiverar bedömningen. Ange specifikt om anklagelserna är allmänt kända via nyhetsmedier, eller om det rör sig om nya anklagelser, grova förolämpningar eller drev.]
+
+        DATA FÖR ANALYS:
+        Transkription (AI-sammanfattning): 
+        {summarized_transcript} 
+        """
     
     # Log the formatted prompt for debugging
     print("=== FORMATTED AI ANALYSIS PROMPT ===")
@@ -2614,7 +2614,7 @@ def _perform_ai_analysis(v_id, title, summarized_transcript):
         return None
 
 
-def _store_analysis_results(v_id, channel_name, title, publication_date, full_text, ai_analysis):
+def _store_analysis_results(v_id, channel_name, title, publication_date, full_text, ai_analysis, summarized_transcript=None):
     """Store analysis results in analysis stats"""
     analysis_stats = load_analysis_stats()
     
@@ -2624,13 +2624,24 @@ def _store_analysis_results(v_id, channel_name, title, publication_date, full_te
     )
     
     # Add transcription analysis (store the full transcript)
+    transcript_prompt = f"Transkribera och sammanfatta video: {title}"
     add_analysis_to_video(
         video_entry,
         "raw_transcript",
-        f"Transkribera och sammanfatta video: {title}",
+        transcript_prompt,
         full_text if full_text else "No transcription available",
         "whisper-large-v3-turbo",
     )
+    
+    # Store the summarized transcript if available
+    if summarized_transcript:
+        add_analysis_to_video(
+            video_entry,
+            "summarized_transcript",
+            transcript_prompt,
+            summarized_transcript,
+            "whisper-large-v3-turbo",
+        )
     
     # Add AI analysis (store the already-generated AI analysis)
     if ai_analysis:
@@ -2687,13 +2698,15 @@ def get_transcript_and_analysis(
             print(f"Proceeding with AI analysis for {v_id}...")
             
             # Summarize long transcripts to fit token limits
+            print(f"Summarizing transcript for {v_id}...")
             summarized_transcript = summarize_transcript(full_text, title)
+            print(f"Transcript summarized for {v_id} (length: {len(summarized_transcript)} characters)")
             
             # Perform AI analysis
             ai_analysis = _perform_ai_analysis(v_id, title, summarized_transcript)
             
             # Store results
-            _store_analysis_results(v_id, channel_name, title, publication_date, full_text, ai_analysis)
+            _store_analysis_results(v_id, channel_name, title, publication_date, full_text, ai_analysis, summarized_transcript)
         else:
             ai_analysis = None
         

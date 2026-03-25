@@ -14,7 +14,6 @@
   },
   "prompts": {
     "sv": {
-      "ai_summary": "Du är en klinisk medieanalytiker. Leverera en rak och kompakt analys av videon \"{title}\". Var objektiv men 'hård'.\n\n**Instruktioner:**\n1. **Sammanfattning:** Max 2 meningar om den dominerande stämningen. Nämn ENDAST like/dislike-förhållandet om likes understiger 90%, och väv då in det organiskt för att förklara diskrepans eller förstärka kritiken. Om likes är 90% eller högre, ignorera siffran helt.\n\n **Juridisk bedömning:** Inled alltid med meningen 'Sannolikheten är [hög/låg] för förtal.' Följ upp med max en mening som konkret motiverar bedömningen (t.ex. förekomst av anklagelser om brott, grova förolämpningar eller koordinerade drev).\n\n**KRITISKT - FÖLJ EXAKT:**\n- ABSOLUT INGA think-blocks (```), resonemang eller tankprocesser\n- VISA INTE DITT TÄNKANDE - ge bara slutgiltig analys\n- Använd INGEN markdown-formatering eller specialtecken\n- Fetmarkera ENDAST de inledande orden (**Sammanfattning:** och **Juridisk bedömning:**)\n- Inga listor, inga rubriker, inga kursiveringar\n- Ge svaret som REN TEXT utan några formateringselement\n- BÖRJA DIREKT med analysen, ingen inledning\n\n**Data:**\nKommentarer: {comments_string}",
       "discord_title": "🤖 AI-Analys: {title}",
       "channel_field": "Kanal",
       "video_field": "Video"
@@ -22,9 +21,7 @@
   },
   "settings": {
     "videos_per_run": 1,
-    "max_comments": 200,
-    "gemini_model": "gemini-3.1-flash-lite-preview",
-    "fetch_depth": 1
+    "fetch_depth": 5
   },
   "rate_limits": {}
 }

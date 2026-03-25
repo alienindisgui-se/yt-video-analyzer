@@ -228,7 +228,7 @@ The system uses multiple APIs and services:
 
 - **Playwright**: Web scraping for YouTube video metadata and content
 - **yt-dlp**: Audio download from YouTube videos
-- **ReturnYouTubeDislikeAPI**: Video statistics (likes, dislikes, views)
+- **Return YouTube Dislike API**: Video statistics (likes, dislikes, views) - [returnyoutubedislike.com](https://returnyoutubedislike.com)
 - **Groq API**: Primary AI analysis
 - **Gemini API**: Fallback AI processing and transcript summarization
 - **AssemblyAI**: Audio transcription services
@@ -318,6 +318,14 @@ Reset the processing queue:
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+This project utilizes the following third-party services and APIs:
+
+- **Return YouTube Dislike API** - Provides YouTube dislike counts and video statistics  
+  Project: [returnyoutubedislike.com](https://returnyoutubedislike.com)  
+  GitHub: [Anarios/return-youtube-dislike](https://github.com/Anarios/return-youtube-dislike)
 
 ## 🤝 Contributing
 
