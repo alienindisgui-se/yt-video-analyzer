@@ -77,7 +77,6 @@
   },
   "_queue_state": {
     "pending_queue": [
-      "vRggtmBKLuY",
       "QoVoasqU5Ig",
       "Z7_46jzcgkk"
     ],
@@ -90,7 +89,8 @@
       "_Yoq1-Yu6vY",
       "WEOSvSFmvnk",
       "I6uil2F_tLM",
-      "p8tsfpW_uhA"
+      "p8tsfpW_uhA",
+      "vRggtmBKLuY"
     ],
     "fetch_depth": 3,
     "current_processing": null
