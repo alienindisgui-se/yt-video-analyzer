@@ -2355,11 +2355,22 @@ def transcribe_with_gemini_audio(v_id):
 
 
 def _check_ffmpeg_availability():
-    """Check for FFmpeg availability in expected locations"""
+    """Check for FFmpeg availability in expected locations or system PATH"""
+    import shutil
+    import platform
+    
+    # 1. Check system PATH first (This makes it work in GitHub Actions/Linux)
+    if shutil.which("ffmpeg") and shutil.which("ffprobe"):
+        return None, True
+        
     ffmpeg_available = False
     ffmpeg_dir = None
     
-    # Define possible FFmpeg locations in priority order
+    # 2. Check local directories (for your local Windows environment)
+    is_windows = platform.system() == "Windows"
+    ffmpeg_name = "ffmpeg.exe" if is_windows else "ffmpeg"
+    ffprobe_name = "ffprobe.exe" if is_windows else "ffprobe"
+    
     current_dir = os.getcwd()
     ffmpeg_locations = [
         current_dir,
@@ -2367,23 +2378,16 @@ def _check_ffmpeg_availability():
     ]
     
     for location in ffmpeg_locations:
-        local_ffmpeg = os.path.join(location, "ffmpeg.exe")
-        local_ffprobe = os.path.join(location, "ffprobe.exe")
+        local_ffmpeg = os.path.join(location, ffmpeg_name)
+        local_ffprobe = os.path.join(location, ffprobe_name)
         
-        ffmpeg_exists = os.path.exists(local_ffmpeg)
-        ffprobe_exists = os.path.exists(local_ffprobe)
-        
-        if ffmpeg_exists and ffprobe_exists:
+        if os.path.exists(local_ffmpeg) and os.path.exists(local_ffprobe):
             ffmpeg_available = True
             ffmpeg_dir = location
             break
     
     if not ffmpeg_available:
-        logging.warning("FFmpeg files not found in any expected locations")
-        logging.info("To fix this issue, you can:")
-        logging.info("1. Download FFmpeg from https://ffmpeg.org/download.html")
-        logging.info("2. Extract ffmpeg.exe and ffprobe.exe to project root directory")
-        logging.info("3. Or ensure they are available in your system PATH")
+        logging.warning("FFmpeg files not found in system PATH or expected local folders.")
     
     return ffmpeg_dir, ffmpeg_available
 
@@ -2421,24 +2425,27 @@ def _get_ffmpeg_download_options(ffmpeg_available, ffmpeg_dir):
     """Return appropriate download options based on FFmpeg availability"""
     if ffmpeg_available:
         compression_settings = _get_compression_settings("standard")
-        return {
+        opts = {
             "format": WORST_AUDIO_FORMAT,
-            "outtmpl": None,  # Will be set by caller
+            "outtmpl": None,
             "quiet": True,
             "no_warnings": True,
             "extract_audio": True,
             "keepvideo": False,
             "nopart": True,
             "noprogress": True,
-            "ffmpeg_location": ffmpeg_dir,
             "postprocessors": compression_settings["postprocessors"],
             "postprocessor_args": compression_settings["postprocessor_args"],
         }
+        # Only set explicitly if we have a local path, otherwise use system PATH
+        if ffmpeg_dir:
+            opts["ffmpeg_location"] = ffmpeg_dir
+        return opts
     else:
         # Fallback to basic extraction without compression
         return {
             "format": "bestaudio/best",
-            "outtmpl": None,  # Will be set by caller
+            "outtmpl": None,
             "quiet": True,
             "no_warnings": True,
             "extract_audio": True,
@@ -2907,7 +2914,8 @@ def process_single_video(v_id):
         logging.basicConfig(
             level=logging.INFO, 
             format='%(asctime)s - %(levelname)s - %(message)s',
-            stream=sys.stdout  # Ensure logs go to stdout so they can be captured
+            stream=sys.stdout,
+            force=True  # <--- CRITICAL FIX: Forces override of the global logger
         )
         
         # Get video data first to extract channel name
@@ -3198,7 +3206,7 @@ if __name__ == "__main__":
                     __file__,  # This script
                     "--single-video", 
                     v_id
-                ], capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=1200, env=env)  # 20 minute timeout
+                ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding='utf-8', errors='replace', timeout=1200, env=env)  # 20 minute timeout
                 
                 if result.returncode == 0:
                     logging.info(f"Successfully processed video {v_id}")
