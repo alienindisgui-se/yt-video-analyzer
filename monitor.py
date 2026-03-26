@@ -3191,12 +3191,14 @@ if __name__ == "__main__":
                 logging.info(f"Starting subprocess for video {v_id}")
                 
                 # Create a separate Python process for each video to avoid Playwright conflicts
+                # Pass environment variables to subprocess
+                env = os.environ.copy()
                 result = subprocess.run([
                     sys.executable, 
                     __file__,  # This script
                     "--single-video", 
                     v_id
-                ], capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=1200)  # 20 minute timeout
+                ], capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=1200, env=env)  # 20 minute timeout
                 
                 if result.returncode == 0:
                     logging.info(f"Successfully processed video {v_id}")
