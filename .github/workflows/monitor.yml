@@ -26,6 +26,8 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          # Install the WPC plugin and browser automation tools
+          pip install yt-dlp-getpot-wpc nodriver
       - name: Install Playwright browsers
         run: |
           playwright install chromium

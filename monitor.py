@@ -2355,21 +2355,17 @@ def transcribe_with_gemini_audio(v_id):
 
 
 def _check_ffmpeg_availability():
-    """Check for FFmpeg availability in expected locations or system PATH"""
+    """Check for FFmpeg availability in system PATH or local folders"""
     import shutil
     import platform
     
-    # 1. Check system PATH first (This makes it work in GitHub Actions/Linux)
-    if shutil.which("ffmpeg") and shutil.which("ffprobe"):
+    # 1. Check system PATH (Works for GitHub Actions/Linux)
+    if shutil.which("ffmpeg"):
         return None, True
         
-    ffmpeg_available = False
-    ffmpeg_dir = None
-    
-    # 2. Check local directories (for your local Windows environment)
+    # 2. Check local directories (For your local Windows setup)
     is_windows = platform.system() == "Windows"
     ffmpeg_name = "ffmpeg.exe" if is_windows else "ffmpeg"
-    ffprobe_name = "ffprobe.exe" if is_windows else "ffprobe"
     
     current_dir = os.getcwd()
     ffmpeg_locations = [
@@ -2378,18 +2374,10 @@ def _check_ffmpeg_availability():
     ]
     
     for location in ffmpeg_locations:
-        local_ffmpeg = os.path.join(location, ffmpeg_name)
-        local_ffprobe = os.path.join(location, ffprobe_name)
-        
-        if os.path.exists(local_ffmpeg) and os.path.exists(local_ffprobe):
-            ffmpeg_available = True
-            ffmpeg_dir = location
-            break
+        if os.path.exists(os.path.join(location, ffmpeg_name)):
+            return location, True
     
-    if not ffmpeg_available:
-        logging.warning("FFmpeg files not found in system PATH or expected local folders.")
-    
-    return ffmpeg_dir, ffmpeg_available
+    return None, False
 
 
 def _get_compression_settings(compression_level):
@@ -2422,37 +2410,36 @@ def _get_compression_settings(compression_level):
 
 
 def _get_ffmpeg_download_options(ffmpeg_available, ffmpeg_dir):
-    """Return appropriate download options based on FFmpeg availability"""
-    if ffmpeg_available:
-        compression_settings = _get_compression_settings("standard")
-        opts = {
-            "format": WORST_AUDIO_FORMAT,
-            "outtmpl": None,
-            "quiet": True,
-            "no_warnings": True,
-            "extract_audio": True,
-            "keepvideo": False,
-            "nopart": True,
-            "noprogress": True,
-            "postprocessors": compression_settings["postprocessors"],
-            "postprocessor_args": compression_settings["postprocessor_args"],
+    """Return appropriate download options with WPC Guest Token hack"""
+    compression_settings = _get_compression_settings("standard")
+    
+    opts = {
+        "format": WORST_AUDIO_FORMAT if ffmpeg_available else "bestaudio/best",
+        "outtmpl": None,
+        "quiet": False,      # Changed to False so we can see errors in logs
+        "no_warnings": False,
+        "extract_audio": True,
+        "keepvideo": False,
+        "nopart": True,
+        "noprogress": True,
+        # THE WPC HACK:
+        # 1. Use the iOS client (less likely to be challenged)
+        # 2. Use the WPC plugin to generate a Guest PO Token
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["ios"],
+                "po_token": ["web+wpc"]
+            }
         }
-        # Only set explicitly if we have a local path, otherwise use system PATH
+    }
+
+    if ffmpeg_available:
+        opts["postprocessors"] = compression_settings["postprocessors"]
+        opts["postprocessor_args"] = compression_settings["postprocessor_args"]
         if ffmpeg_dir:
             opts["ffmpeg_location"] = ffmpeg_dir
-        return opts
-    else:
-        # Fallback to basic extraction without compression
-        return {
-            "format": "bestaudio/best",
-            "outtmpl": None,
-            "quiet": True,
-            "no_warnings": True,
-            "extract_audio": True,
-            "keepvideo": False,
-            "nopart": True,
-            "noprogress": True,
-        }
+            
+    return opts
 
 
 def _setup_temp_audio_file():
@@ -2909,13 +2896,12 @@ def get_transcript_and_analysis(
 def process_single_video(v_id):
     """Process a single video (called from subprocess)"""
     try:
-        # Setup logging for subprocess - use basicConfig to ensure logs go to stdout
-        import sys
+        # Force the logger to reconfigure for the subprocess
         logging.basicConfig(
-            level=logging.INFO, 
+            level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s',
             stream=sys.stdout,
-            force=True  # <--- CRITICAL FIX: Forces override of the global logger
+            force=True  # This is the important part
         )
         
         # Get video data first to extract channel name
