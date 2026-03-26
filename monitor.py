@@ -22,6 +22,7 @@ WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 ASSEMBLYAI_API_KEY = os.getenv("ASSEMBLYAI_API_KEY")
+DISCORD_DEBUG = os.getenv("DISCORD_DEBUG", "true").lower() == "true"
 
 if not GROQ_API_KEY:
     logging.error("GROQ_API_KEY environment variable is required but not set")
@@ -1166,32 +1167,161 @@ def _build_discord_embed(video_entry, channel_name, video_date, title, v_id, vid
 def _send_discord_request(embed):
     """Handle the actual Discord API request"""
     logging.info("=== FUNCTION START: _send_discord_request ===")
+    
+    if DISCORD_DEBUG:
+        # Log environment context
+        import sys
+        import ssl
+        import socket
+        import requests
+        
+        logging.info("=== DISCORD ENVIRONMENT CONTEXT ===")
+        logging.info(f"Python version: {sys.version}")
+        logging.info(f"Requests version: {requests.__version__}")
+        logging.info(f"SSL version: {ssl.OPENSSL_VERSION}")
+        logging.info(f"Platform: {sys.platform}")
+        logging.info(f"Webhook URL (sanitized): {WEBHOOK[:50]}...{WEBHOOK[-10:] if len(WEBHOOK) > 60 else ''}")
+        logging.info(f"Webhook domain: {WEBHOOK.split('/')[2] if WEBHOOK and '/' in WEBHOOK else 'Unknown'}")
+        logging.info("=== END DISCORD ENVIRONMENT CONTEXT ===")
+        
+        # Network diagnostics
+        try:
+            import urllib.parse
+            parsed_url = urllib.parse.urlparse(WEBHOOK)
+            hostname = parsed_url.hostname
+            if hostname:
+                ip_address = socket.gethostbyname(hostname)
+                logging.info(f"DNS resolution: {hostname} -> {ip_address}")
+        except Exception as e:
+            logging.error(f"DNS resolution failed: {e}")
+    
     payload = {"embeds": [embed]}
     
-    # Log the complete payload nicely formatted
-    # logging.info("=== DISCORD PAYLOAD ===")
-    # logging.info("Payload:\n" + json.dumps(payload, indent=2, ensure_ascii=False))
-    # logging.info("=== END DISCORD PAYLOAD ===")
+    if DISCORD_DEBUG:
+        # Log complete payload nicely formatted
+        logging.info("=== DISCORD PAYLOAD ===")
+        logging.info(f"Payload size: {len(json.dumps(payload))} characters")
+        logging.info("Payload:\n" + json.dumps(payload, indent=2, ensure_ascii=False))
+        logging.info("=== END DISCORD PAYLOAD ===")
+        
+        # Test basic connectivity first
+        try:
+            import urllib.parse
+            parsed_url = urllib.parse.urlparse(WEBHOOK)
+            test_url = f"https://{parsed_url.netloc}/"
+            logging.info(f"Testing basic connectivity to {test_url}")
+            test_response = requests.get(test_url, timeout=10)
+            logging.info(f"Basic connectivity test: HTTP {test_response.status_code}")
+        except Exception as e:
+            logging.error(f"Basic connectivity test failed: {e}")
     
-    return requests.post(WEBHOOK, json=payload, timeout=30)
+    # Make the actual Discord request with enhanced logging
+    start_time = time.time()
+    logging.info(f"Sending Discord request to {WEBHOOK}")
+    
+    try:
+        response = requests.post(
+            WEBHOOK, 
+            json=payload, 
+            timeout=30,
+            headers={
+                'User-Agent': f'YouTube-Analyzer/1.0 (Python/{sys.version.split()[0]})',
+                'Content-Type': 'application/json'
+            }
+        )
+        end_time = time.time()
+        
+        if DISCORD_DEBUG:
+            logging.info("=== DISCORD REQUEST DETAILS ===")
+            logging.info(f"Request duration: {end_time - start_time:.2f} seconds")
+            logging.info(f"Request URL: {WEBHOOK}")
+            logging.info("Request method: POST")
+            logging.info(f"Request headers: {dict(response.request.headers)}")
+            logging.info(f"Response status: {response.status_code}")
+            logging.info(f"Response headers: {dict(response.headers)}")
+            logging.info(f"Response text: {response.text}")
+            logging.info(f"Response encoding: {response.encoding}")
+            logging.info("=== END DISCORD REQUEST DETAILS ===")
+        
+        return response
+        
+    except requests.exceptions.Timeout as e:
+        logging.error(f"Discord request timed out after 30 seconds: {e}")
+        raise
+    except requests.exceptions.ConnectionError as e:
+        logging.error(f"Discord connection error: {e}")
+        raise
+    except requests.exceptions.SSLError as e:
+        logging.error(f"Discord SSL error: {e}")
+        raise
+    except Exception as e:
+        logging.error(f"Unexpected Discord request error: {type(e).__name__}: {e}")
+        raise
 
 def _handle_discord_response(response, video_entry):
     """Process Discord API response"""
     logging.info("=== FUNCTION START: _handle_discord_response ===")
+    
+    if DISCORD_DEBUG:
+        # Detailed response analysis
+        logging.info("=== DISCORD RESPONSE ANALYSIS ===")
+        logging.info(f"Status code: {response.status_code}")
+        logging.info(f"Reason phrase: {response.reason}")
+        logging.info(f"URL: {response.url}")
+        logging.info(f"Elapsed time: {response.elapsed}")
+        logging.info(f"Headers: {dict(response.headers)}")
+        
+        # Check for specific Discord error patterns
+        if response.text:
+            logging.info(f"Response body: {response.text}")
+            
+            # Parse common Discord error responses
+            try:
+                response_json = response.json() if response.text else {}
+                if 'code' in response_json:
+                    error_code = response_json['code']
+                    error_message = response_json.get('message', 'Unknown error')
+                    logging.error(f"Discord API error {error_code}: {error_message}")
+                    
+                    # Specific error handling
+                    if error_code == 50027:  # Invalid webhook URL
+                        logging.error("Invalid webhook URL - check DISCORD_WEBHOOK environment variable")
+                    elif error_code == 30015:  # Rate limited
+                        retry_after = response_json.get('retry_after', 0)
+                        logging.error(f"Rate limited. Retry after {retry_after} seconds")
+                    elif error_code == 50009:  # Embed too large
+                        logging.error("Discord embed too large - content exceeds size limits")
+                        
+            except json.JSONDecodeError:
+                logging.warning("Could not parse Discord response as JSON")
+        
+        logging.info("=== END DISCORD RESPONSE ANALYSIS ===")
+    
     if response.status_code == 204:
         logging.info(
             f"Successfully posted analysis for video {video_entry.get('video_id')} to Discord"
         )
         return True
+    elif response.status_code == 400:
+        logging.error("Discord Bad Request - Invalid webhook or malformed payload")
+    elif response.status_code == 401:
+        logging.error("Discord Unauthorized - Invalid webhook authentication")
+    elif response.status_code == 403:
+        logging.error("Discord Forbidden - Webhook lacks permissions")
+    elif response.status_code == 404:
+        logging.error("Discord Not Found - Webhook URL does not exist")
+    elif response.status_code == 429:
+        logging.error("Discord Rate Limited - Too many requests")
+    elif response.status_code >= 500:
+        logging.error("Discord Server Error - Discord service unavailable")
     else:
-        logging.error(
-            f"Failed to post to Discord: HTTP {response.status_code} - {response.text}"
-        )
-        return False
+        logging.error(f"Discord Unexpected Error - HTTP {response.status_code}")
+    
+    return False
 
 
 def send_discord_message(video_entry, channel_name):
-    """Send analysis results to Discord webhook"""
+    """Send analysis results to Discord webhook with retry logic"""
     logging.info("=== FUNCTION START: send_discord_message ===")
     if not WEBHOOK:
         logging.warning("Discord webhook not configured - skipping Discord post")
@@ -1200,6 +1330,7 @@ def send_discord_message(video_entry, channel_name):
     try:
         # Extract video data
         v_id, title = _extract_video_data(video_entry)
+        logging.info(f"Processing Discord message for video {v_id}: {title}")
         
         # Get video date
         video_date = _get_video_date(video_entry)
@@ -1213,14 +1344,59 @@ def send_discord_message(video_entry, channel_name):
             video_entry, channel_name, video_date, title, v_id, videos_count, video_word
         )
         
-        # Send to Discord
-        response = _send_discord_request(embed)
+        # Retry logic with exponential backoff
+        max_retries = 3
+        base_delay = 2  # seconds
         
-        # Handle response
-        return _handle_discord_response(response, video_entry)
+        for attempt in range(max_retries):
+            try:
+                logging.info(f"Discord send attempt {attempt + 1}/{max_retries}")
+                
+                # Send to Discord
+                response = _send_discord_request(embed)
+                
+                # Handle response
+                success = _handle_discord_response(response, video_entry)
+                
+                if success:
+                    logging.info(f"Discord message sent successfully on attempt {attempt + 1}")
+                    return True
+                
+                # If we got a rate limit error, wait and retry
+                if response.status_code == 429:
+                    retry_after = 30  # Default retry time
+                    try:
+                        response_json = response.json()
+                        retry_after = response_json.get('retry_after', 30)
+                    except Exception:
+                        pass
+                    
+                    logging.warning(f"Rate limited. Waiting {retry_after} seconds before retry...")
+                    time.sleep(retry_after)
+                    continue
+                
+                # For other errors, wait with exponential backoff
+                if attempt < max_retries - 1:
+                    delay = base_delay * (2 ** attempt)
+                    logging.warning(f"Discord send failed. Waiting {delay} seconds before retry...")
+                    time.sleep(delay)
+                    
+            except Exception as attempt_error:
+                logging.error(f"Discord send attempt {attempt + 1} failed: {type(attempt_error).__name__}: {attempt_error}")
+                
+                if attempt < max_retries - 1:
+                    delay = base_delay * (2 ** attempt)
+                    logging.warning(f"Waiting {delay} seconds before retry...")
+                    time.sleep(delay)
+        
+        # All retries failed
+        logging.error(f"All {max_retries} Discord send attempts failed for video {v_id}")
+        return False
 
     except Exception as e:
-        logging.error(f"Error posting to Discord: {e}")
+        logging.error(f"Unexpected error in send_discord_message: {type(e).__name__}: {e}")
+        import traceback
+        logging.error(f"Full traceback: {traceback.format_exc()}")
         return False
 
 
@@ -2703,7 +2879,13 @@ def get_transcript_and_analysis(
             print(f"Transcript summarized for {v_id} (length: {len(summarized_transcript)} characters)")
             
             # Perform AI analysis
+            print(f"Starting AI analysis for {v_id}...")
             ai_analysis = _perform_ai_analysis(v_id, title, summarized_transcript)
+            print(f"AI analysis completed for {v_id}: {bool(ai_analysis)}")
+            if ai_analysis:
+                print(f"AI analysis length: {len(ai_analysis)} characters")
+            else:
+                print(f"AI analysis failed for {v_id}")
             
             # Store results
             _store_analysis_results(v_id, channel_name, title, publication_date, full_text, ai_analysis, summarized_transcript)
@@ -2815,6 +2997,9 @@ def process_single_video(v_id):
                 logging.warning(
                     f"Skipping video {v_id} - transcription failed and is required for analysis"
                 )
+                logging.info(f"DEBUG: transcript_text value = '{transcript_text}'")
+                logging.info(f"DEBUG: transcript_text type = {type(transcript_text)}")
+                logging.info(f"DEBUG: transcript_text == 'TRANSCRIPTION_FAILED' = {transcript_text == 'TRANSCRIPTION_FAILED'}")
                 # Still print completion marker since processing was attempted
                 print(f"PROCESSING_SUCCESS:{v_id}")
                 return
@@ -2874,20 +3059,30 @@ def process_single_video(v_id):
                     save_queue_state(queue_state)
 
                 # Send Discord message if we have valid analysis data
+                print(f"DEBUG: About to check Discord eligibility for {v_id}...")
                 has_ai_analysis = bool(ai_analysis)
                 has_transcript = bool(transcript_text and transcript_text != "TRANSCRIPTION_FAILED")
                 
                 logging.info(f"Discord eligibility check for {v_id}: ai_analysis={has_ai_analysis}, transcript_valid={has_transcript}")
+                print(f"DEBUG: Discord eligibility - ai_analysis={has_ai_analysis}, transcript_valid={has_transcript}")
                 
                 if has_ai_analysis and has_transcript:
                     logging.info(f"Sending Discord message for {v_id}")
+                    print(f"DEBUG: About to send Discord message for {v_id}...")
+
+                    # Add a small delay to prevent rate limiting
+                    import time
+                    time.sleep(1)
 
                     # Send to Discord
                     discord_success = send_discord_message(
                         video_entry, channel_name
                     )
+                    print(f"DEBUG: Discord message send result: {discord_success}")
+                    
                     if discord_success:
                         logging.info(f"Discord message sent successfully for {v_id}")
+                        print(f"DEBUG: Discord message was successful for {v_id}")
 
                         # Mark video as completed and add timestamp
                         video_entry["sentToDiscord"] = True
@@ -2903,6 +3098,7 @@ def process_single_video(v_id):
 
                     else:
                         logging.warning(f"Failed to send Discord message for {v_id}")
+                        print(f"DEBUG: Discord message failed for {v_id}")
                         
                         # Still mark as completed since processing succeeded
                         video_entry["sentToDiscord"] = False
@@ -2916,6 +3112,7 @@ def process_single_video(v_id):
                     logging.warning(
                         f"Skipping Discord message for {v_id} - missing required data (ai_analysis: {bool(ai_analysis)}, transcript: {bool(transcript_text and transcript_text != 'TRANSCRIPTION_FAILED')})"
                     )
+                    print(f"DEBUG: Skipping Discord for {v_id} - missing data")
 
                     # Still print completion marker since processing succeeded
                     print(f"PROCESSING_SUCCESS:{v_id}")

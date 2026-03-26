@@ -36,6 +36,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           ASSEMBLYAI_API_KEY: ${{ secrets.ASSEMBLYAI_API_KEY }}
           CHANNELS_LIST: ${{ secrets.CHANNELS_LIST }}
+          DISCORD_DEBUG: "true"
         run: python monitor.py
       - name: Commit and Push changes
         run: |

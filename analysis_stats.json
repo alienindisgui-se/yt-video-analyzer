@@ -31,6 +31,97 @@
         "ui_comment_count": 0,
         "sentToDiscord": true,
         "discord_posted_date": "2026-03-24"
+      },
+      {
+        "video_id": "p8tsfpW_uhA",
+        "title": "LINNEAS INTERVJU HOS CLUEE!",
+        "channel_name": "CarlFredrikAlexanderRask",
+        "analysis_date": "2026-03-26",
+        "analysis_timestamp": 1774541089.7346632,
+        "publication_date": "2026-03-18",
+        "analyses": {
+          "raw_transcript": {
+            "input_prompt": "Transkribera och sammanfatta video: LINNEAS INTERVJU HOS CLUEE!",
+            "output": " Hörrni, för helvete lugna mer er! Ja, det kommer en reaktion på den. Jag har ändå ingenting annat att göra idag. Den senaste videon handlar om Mattias. Nästa video om Mattias kommer komma. Som jag sa, vi kör lite varannan under tiden det fasas ut. Och det här är någonting som jag har blivit drängt om sen igår. Och då tänkte jag att ja, jag ger er vad ni vill ha Så vi ska idag reagera på Clues intervju med Linnea Jag tror inte jag kommer ha någonting att säga om jag ska vara ärlig Men vi får väl se, jag blir alltid lika förbluffad Hörni, vet ni vad jag kom på? Jag satt ju alltid med porrbrillorna i mina videos Och nu på senaste tiden, jag har inte haft några glasögon alls Vi måste återinföra porrglasögonen Vi får se om det är för distraherande och störande. Då får jag skita i det. Jag beställde nya och glasen är lite för mörka kanske. Men vi får se i alla fall. Jag tycker att det ser så snusket och snyggt ut. Du är varmt välkommen hit. Jag önskar ifrån dig en tumme upp. Och gärna fler ...",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-26"
+          },
+          "ai_analysis": {
+            "input_prompt": "AI-analys av video: LINNEAS INTERVJU HOS CLUEE!",
+            "output": "**Sammanfattning:** Videon handlar om Linneas intervju med Cluee och innehåller en reaktion på detta. Influencern diskuterar sin egen situation och föreslår återinförande av porrbrillor i sina videos.\n\n**Juridisk bedömning:** Sannolikheten är låg för förtal. Anklagelserna mot Cluee och Linnea är inte allmänt kända via nyhetsmedier, men snarare en reaktion på en specifik intervju. Influencerns kommentarer om porrbrillor kan uppfattas som provocerande, men saknar tydliga anklagelser eller grova förolämpningar.",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-26"
+          }
+        },
+        "video_stats": {
+          "likes": 1175,
+          "dislikes": 2943,
+          "views": 23550,
+          "like_ratio": 28.533268576979115
+        },
+        "ui_comment_count": 0,
+        "sentToDiscord": false
+      },
+      {
+        "video_id": "VoBjHjCG8EA",
+        "title": "FANNS DET DR*GER PÅ FESTEN? - FALLET MATTIAS.",
+        "channel_name": "CarlFredrikAlexanderRask",
+        "analysis_date": "2026-03-26",
+        "analysis_timestamp": 1774542436.4222994,
+        "publication_date": "2026-03-11",
+        "analyses": {
+          "raw_transcript": {
+            "input_prompt": "Transkribera och sammanfatta video: FANNS DET DR*GER PÅ FESTEN? - FALLET MATTIAS.",
+            "output": "God afton allesammans och varmt välkommen ska just du vara till ännu en video. Du är otroligt vacker idag och du är väldigt gullig. Kan inte du lämna en tumme upp och en kommentar och följa mig på Instagram? Realbaronen heter jag ändå. Hörrni, idag blir det en lite tyngre video igen. Förra videon var lite mer lättsam. Vi pratade om Crippa, vi pratade om hans teckningar och någon skrev så här. Det är väl inte så schysst av dig att skoja om Crippas teckningar. Då kanske han blir ledsen. Då skrev jag så här. Ja, tror du inte han blir ledsen då? Sa någon. Då sa jag så här. Ja, kanske om vi gick i förskolan. Men jag menar, om jag ritar någonting och någon säger till mig så här 36 år gammal, du är det där. Det var skitfult. Det var så roligt för det kändes som att det var en lärare som sa åt oss. Och det är den nivån det ligger på. Men i alla fall idag så ska vi inte prata om Crippa. Utan vi ska fortsätta prata om fallet Mattias. Alltså, jag känner mig så ridiculous när jag sitter här. Det ä...",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-26"
+          },
+          "ai_analysis": {
+            "input_prompt": "AI-analys av video: FANNS DET DR*GER PÅ FESTEN? - FALLET MATTIAS.",
+            "output": "**Sammanfattning:** Videon handlar om en diskussion kring fallet Mattias, där innehållskrälsen uttrycker sin egen uppfattning om händelsen. Innehållet är en blandning av personliga åsikter och reaktioner på anklagelser som riktats mot en person. Videon innehåller även en diskussion om hur man bör behandla andras kreativitet och om hur man bör reagera på negativa kommentarer.\n\n**Juridisk bedömning:** Sannolikheten är **måttlig** för förtal. Anklagelserna riktas mot en person och innehållet kan uppfattas som kritiskt och negativt. Dock är det inte klart om anklagelserna är allmänt kända via nyhetsmedier, vilket skulle minska sannolikheten för förtal.",
+            "model": "assemblyai",
+            "timestamp": "2026-03-26"
+          }
+        },
+        "video_stats": {
+          "likes": 840,
+          "dislikes": 1599,
+          "views": 12793,
+          "like_ratio": 34.44034440344404
+        },
+        "ui_comment_count": 0,
+        "sentToDiscord": true,
+        "discord_posted_date": "2026-03-26"
+      },
+      {
+        "video_id": "Ms2Qqua_Efo",
+        "title": "CHRIPPA OCH LINNEAS DOM ÄR ETT SKÄMT!",
+        "channel_name": "CarlFredrikAlexanderRask",
+        "analysis_date": "2026-03-26",
+        "analysis_timestamp": 1774542807.2479768,
+        "publication_date": "2026-03-13",
+        "analyses": {
+          "raw_transcript": {
+            "input_prompt": "Transkribera och sammanfatta video: CHRIPPA OCH LINNEAS DOM ÄR ETT SKÄMT!",
+            "output": "Grått, öppna rocken och visa nåt. Han heter, påtagligt påverkade Peter. Han heter, han heter, han heter, påtagligt påverkade Peter. Han heter, han heter, han heter, påtagligt påverkade Peter. Han drar en runk i ett cykelförråd. Snattar på bolaget helt utan nåd. Defekerar på torget i all sin prakt. Krämar på med brev. Han heter, han heter, han heter, påtagligt påverkade Peter. Han heter, han heter, han heter, påtagligt påverkade Peter. Han heter, han heter, han heter, påtagligt påverkade Peter. Peter är lycklig, han är kort och full. Runkar i diket, ramlar omkull. Ja Peter dricker, men det skiter han i. En näve filler, en pava vin. Påverkade Peter. Han heter, han heter, han heter. Måltagligt påverkade Peter. Han heter, han heter, han heter. Måltagligt påverkade Peter. Blir förbannad i hela jävla stan. Blir förbannad i hela jävla stan. Blir förbannad i hela jävla stan. Blir förbannad i hela jävla stan. Blir förbannad i hela jävla stan. Blir förbannad i hela jävla stan. Blir förbannad i h...",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-26"
+          },
+          "ai_analysis": {
+            "input_prompt": "AI-analys av video: CHRIPPA OCH LINNEAS DOM ÄR ETT SKÄMT!",
+            "output": "**Sammanfattning:** Videon är en satirisk och humoristisk skildring av en person som kallas \"påtagligt påverkade Peter\". Innehållet består av en lång rad upprepningar av Peters namn och olika anekdoter om hans beteende. Videon har en absurt och överdriven ton.\n\n**Juridisk bedömning:** Sannolikheten är **låg** för förtal. Anklagelserna mot Peter är allmänt kända via nyhetsmedier och verkar vara överdrivna och satiriska, vilket minskar sannolikheten för förtal. Innehållet i videon är mer karakteristiskt för en satirisk eller humoristisk skildring än för ett allvarligt anklagande.",
+            "model": "assemblyai",
+            "timestamp": "2026-03-26"
+          }
+        },
+        "video_stats": {
+          "likes": 1394,
+          "dislikes": 1568,
+          "views": 18677,
+          "like_ratio": 47.06279540850776
+        },
+        "ui_comment_count": 0,
+        "sentToDiscord": false
       }
     ]
   },
@@ -66,19 +157,294 @@
         "ui_comment_count": 0,
         "sentToDiscord": true,
         "discord_posted_date": "2026-03-24"
+      },
+      {
+        "video_id": "vRggtmBKLuY",
+        "title": "Chrippa friar till Linnea på klubben - CHATTEN Del 29",
+        "channel_name": "ANJO1",
+        "analysis_date": "2026-03-26",
+        "analysis_timestamp": 1774541596.2909594,
+        "publication_date": "2026-03-12",
+        "analyses": {
+          "raw_transcript": {
+            "input_prompt": "Transkribera och sammanfatta video: Chrippa friar till Linnea på klubben - CHATTEN Del 29",
+            "output": "Hej allihopa! Välkomna tillbaks till en ny video. Hoppas allt är superbra med er. Då är vi tillbaks. Ja, vilket avsnitt är vi på nu? Vi måste vara på avsnitt 29. Är vi på nu. Vi närmar oss slutet med stormsteg. Och jag märker väl av lite grann att visningarna börjar dippa lite. Det känns som att de flesta har fattat poängen. De fattar att chatten inte är vad de påstår att den var. Och det finns några, eller några, det är nog runt 30 till kvar som hänger kvar och kollar alla avsnitt, vilket jag tycker är helt stört. Alltså efter 28 avsnitt är det fortfarande 30 000 pers som tittar. Det är helt sjukt egentligen. Men jag fattar också att om man har kommit så här långt så vill man inte hoppa av nu, för man vill ju liksom inte missa slutet. Det sista som skrivs är värst. Så kan jag säga. Och det vill man ju inte missa när man har kommit så här långt. Så att jag uppskattar att ni fortfarande tittar. Däremot så ser jag att vi sjunker i prenumeranter, vilket är tråkigt. Jag antar att det är vä...",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-26"
+          },
+          "ai_analysis": {
+            "input_prompt": "AI-analys av video: Chrippa friar till Linnea på klubben - CHATTEN Del 29",
+            "output": "**Sammanfattning:** Videon handlar om att influencern Chrippa diskuterar sin egen videoserie \"Chatten\" och hur visningarna börjar minska. Han uttrycker förvåning över att det fortfarande finns många tittare kvar efter 28 avsnitt. Han tycker att det är \"helt sjukt\" att 30 000 personer fortfarande tittar.\n\n**Juridisk bedömning:** Sannolikheten är låg för förtal. Anklagelserna i videon är inte allmänt kända via nyhetsmedier, utan snarare en personlig kommentar från influencern om sin egen videoserie. Det finns inga grova förolämpningar eller drev mot någon specifik person eller grupp.",
+            "model": "assemblyai",
+            "timestamp": "2026-03-26"
+          }
+        },
+        "video_stats": {
+          "likes": 2325,
+          "dislikes": 140,
+          "views": 40700,
+          "like_ratio": 94.32048681541582
+        },
+        "ui_comment_count": 0,
+        "sentToDiscord": false
+      },
+      {
+        "video_id": "BWzL4RcZx8M",
+        "title": "ANJO BLIR HACKAD? - CHATTEN Del 26",
+        "channel_name": "ANJO1",
+        "analysis_date": "2026-03-26",
+        "analysis_timestamp": 1774543314.9538856,
+        "publication_date": "2026-03-07",
+        "analyses": {
+          "raw_transcript": {
+            "input_prompt": "Transkribera och sammanfatta video: ANJO BLIR HACKAD? - CHATTEN Del 26",
+            "output": "Hej allihopa! Välkomna tillbaks till en ny video. Hoppas allt är superbra med er. Då är det dags igen. Och nu är vi på avsnitt 26, va? Jesus Christ, jag har inte ens koll längre på vart fan vi är någonstans. Nu ska vi se här, vi ska dubbelkolla avsnitt 25, senaste ja. Så avsnitt 26 är vi på nu. Hoppas allt är bra med er, som sagt. Jag ska inte pladdra för mycket, utan jag vet vad ni är här för att se. Ni är inte här för att se mig pladdra, ni är här för att se mig läsa. Jag ska försöka att inte tixa, harkla, gäspa. Vi får se hur det går. Jag ska göra mitt bästa. Men jag har faktiskt fixat två stycken gästläsare. Till nästa vecka. Förhoppningsvis. Om ingenting kommer i vägen. Så ska vi få hit två stycken personer som ska hjälpa mig att läsa lite ur chatten. Så ni får lite variation, kanske lite annorlunda läsarröst. Kanske någon som kan läsa utan att staka sig, harkla sig och hålla på med en massa tics och grejer. Så att det ska bli spännande. Och hoppas ni kommer uppskatta de gästerna....",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-26"
+          },
+          "ai_analysis": {
+            "input_prompt": "AI-analys av video: ANJO BLIR HACKAD? - CHATTEN Del 26",
+            "output": "**Sammanfattning:** Videon handlar om att läsa ur chatten i en tidigare video, med en förhoppning om att få in två gästläsare för att skapa variation i läsarrösten. Innehållet är mer av en presentation av planerna för nästa video än en diskussion om något specifikt.\n\n**Juridisk bedömning:** Sannolikheten är låg för förtal. Anklagelserna är inte allmänt kända via nyhetsmedier och det rör sig inte om nya anklagelser, grova förolämpningar eller drev. Innehållet är mer av en presentation av planerna för nästa video och innehåller inga specifika anklagelser eller kritiska uttalanden.",
+            "model": "assemblyai",
+            "timestamp": "2026-03-26"
+          }
+        },
+        "video_stats": {
+          "likes": 2298,
+          "dislikes": 148,
+          "views": 39160,
+          "like_ratio": 93.94930498773508
+        },
+        "ui_comment_count": 0,
+        "sentToDiscord": false
+      },
+      {
+        "video_id": "emqDrArZDDQ",
+        "title": "Danjal LÄMNAR gruppchatten! - CHATTEN Del 27",
+        "channel_name": "ANJO1",
+        "analysis_date": "2026-03-26",
+        "analysis_timestamp": 1774543571.7433052,
+        "publication_date": "2026-03-08",
+        "analyses": {
+          "raw_transcript": {
+            "input_prompt": "Transkribera och sammanfatta video: Danjal LÄMNAR gruppchatten! - CHATTEN Del 27",
+            "output": " Chattatat chatten Här har ni chatten Chattatat chatten Här har ni chatten Hej allihopa, välkomna tillbaka till en ny video Hoppas allt är superbra med er Då är vi tillbaka igen Och idag är det dags för avsnitt 27 Hörrni Och idag Efter 26 avsnitt Åh Vi är inne på första februari Jesus Christ Låt mig visa Här har vi chatten, här avslutade vi sist Här var det sista jag läste Första februari Vi har äntligen Äntligen Tagit oss igenom Januari Jesus Christ Och nu är vi inne på februari Hör ni mina vänner Nu börjar vi närma oss någonting Vi ska inte snacka så mycket Vi hoppar ner här Får vi se Här var vi Här var vi vi avslutade Men det blir så otroligt konstigt Krippa betalar inte sin hyra Och han vill åka Till Sälen eller Nia Och det ena och det andra Ni som har sett dem tidigare vet ju precis vad jag pratar om så vi fortsätter därifrån helt enkelt det blir kaos så glöm inte att prenumerera återigen jag tjatar på er, prenumerera på kanalen lämna en like kommentera och så vidare så kör vi väl...",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-26"
+          },
+          "ai_analysis": {
+            "input_prompt": "AI-analys av video: Danjal LÄMNAR gruppchatten! - CHATTEN Del 27",
+            "output": "**Sammanfattning:** Videon handlar om en gruppchatt där Danjal avslutar sin deltagande. Innehållet består av en diskussion om en annan person, Krippa, som inte betalar sin hyra och vill åka på semester. Stämningen är informell och vänlig.\n\n**Juridisk bedömning:** Sannolikheten är låg för förtal. Anklagelserna mot Krippa är inte allmänt kända via nyhetsmedier, men det rör sig om en diskussion om en person som inte betalar sin hyra, vilket kan ses som en privat angelägenhet. Det finns inga grova förolämpningar eller drev i videon.",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-26"
+          }
+        },
+        "video_stats": {
+          "likes": 2142,
+          "dislikes": 38,
+          "views": 43060,
+          "like_ratio": 98.25688073394495
+        },
+        "ui_comment_count": 0,
+        "sentToDiscord": true,
+        "discord_posted_date": "2026-03-26"
       }
     ]
   },
   "MotVikten": {
-    "videos": []
+    "videos": [
+      {
+        "video_id": "WEOSvSFmvnk",
+        "title": "Finlands president! ✅ Mord utan armar och ben ✅ SVTs köttburgare ✅ T. Flincks FB-inlägg ✅ Nyheter ✅",
+        "channel_name": "MotVikten",
+        "analysis_date": "2026-03-26",
+        "analysis_timestamp": 1774479744.3127122,
+        "publication_date": "2026-03-24",
+        "analyses": {
+          "raw_transcript": {
+            "input_prompt": "Transkribera och sammanfatta video: Finlands president! ✅ Mord utan armar och ben ✅ SVTs köttburgare ✅ T. Flincks FB-inlägg ✅ Nyheter ✅",
+            "output": "Här är en sammanfattning av videons innehåll, där kreatören delar personliga reflektioner och kommenterar aktuella nyheter:\n\n*   **Personliga reflektioner och morgonrutiner:** Kreatören inleder med en ärlig stund vid frukostbordet. Han berättar om en tuff dag bakom sig präglad av brist på självförtroende och sömn, men uttrycker optimism inför dagen, särskilt gällande löpning och att bryta destruktiva mönster.\n*   **Betraktelser om omgivningen:** Han berättar om ett möte med en sliten person i skogen och reflekterar över vikten av trygghet och livsval för sina barn. Han drömmer även om att bygga ett \"trädkoje-läger\" i skogen för att skapa en primitiv och harmonisk miljö.\n*   **Hyllningar:** Kreatören hyllar kontot \"Max med familj\" för den livsglädje de sprider, samt ultralöparen Anna Karlsson för hennes imponerande prestationer i terränglöpning.\n*   **Nyhetshändelser:**\n    *   **Torsten Flink:** Han kommenterar Torsten Flinks kryptiska och oroliga inlägg på Facebook. Trots att situationen är tragisk, påpekar han att man måste kunna se det humoristiska i hur inläggen är skrivna, samtidigt som han tar starkt avstånd från det hat som riktats mot Flink i kommentarsfälten.\n    *   **SVT-reportern och köttburgaren:** Han diskuterar kontroversen kring en SVT-reporter som fick en köttburgare istället för vegetariskt. Kreatören kritiserar SVT för att använda licenspengar för att driva en \"privat vendetta\" mot en enskild restaurangkedja.\n    *   **Bajs-problematik och märkliga nyheter:** Han nämner en person som smetar avföring i ett offentligt område och berättar den bisarra historien om en amputerad cornhole-spelare som misstänks för mord.\n*   **Avslutning:** Videon avslutas med en reflektion över ett viralt tips om att duscha med en kall apelsin för att bryta vardagsrutiner, vilket kreatören funderar på att testa själv.",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-26"
+          },
+          "ai_analysis": {
+            "input_prompt": "AI-analys av video: Finlands president! ✅ Mord utan armar och ben ✅ SVTs köttburgare ✅ T. Flincks FB-inlägg ✅ Nyheter ✅",
+            "output": "**Sammanfattning:** Videon är en personlig reflektion kring vardag, nyhetshändelser och egna funderingar. Värden diskuterar olika ämnen, inklusive nyheter, personliga erfarenheter och hyllningar till andra personer. Han kritiserar även SVT för att ha skickat en reporter för att konfrontera en restaurang.\n\n**Juridisk bedömning:** Sannolikheten är låg för förtal. Anklagelserna mot SVT är inte allmänt kända via nyhetsmedier, men de verkar handla om en specifik händelse som värden kritiserar. Det finns inga tydliga anklagelser eller grova förolämpningar mot specifika individer eller grupper.",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-26"
+          }
+        },
+        "video_stats": {
+          "likes": 203,
+          "dislikes": 1,
+          "views": 1404,
+          "like_ratio": 99.50980392156863
+        },
+        "ui_comment_count": 0,
+        "sentToDiscord": false
+      },
+      {
+        "video_id": "QoVoasqU5Ig",
+        "title": "CHATTEN SOM INGEN VÅGAT LÄCKA ... ÄN!",
+        "channel_name": "MotVikten",
+        "analysis_date": "2026-03-26",
+        "analysis_timestamp": 1774541710.7845192,
+        "publication_date": "2026-03-16",
+        "analyses": {
+          "raw_transcript": {
+            "input_prompt": "Transkribera och sammanfatta video: CHATTEN SOM INGEN VÅGAT LÄCKA ... ÄN!",
+            "output": "Here are the key points from the YouTube video transcript:\n\n* The narrator receives a bundle of papers containing a secret chat log from a private conversation between several individuals, including Jocke, Gustav, Anjo, Jacke, and others.\n* The chat log reveals a story about Krippa, who allegedly buys a submarine to attack Rask, a person who has been mentioned in the conversation.\n* The group discusses the possibility of Krippa owning a submarine and how it could be used to harm Rask.\n* Jocke claims to have received information about Krippa's plans from a contact and tries to convince the group to take action to stop him.\n* The group debates what to do, with some members suggesting they should contact the police or try to gather more information.\n* Anjo shares a personal experience where he met with someone who claimed to have information about the group, but the encounter turned out to be strange and uncomfortable.\n* The conversation takes a turn when Daniel mentions that he has contacts in the military and can get help to stop Krippa.\n* The group discusses the possibility of using a submarine-hunting ship to stop Krippa, and Daniel claims to have a contact who can provide such a ship.\n* The conversation becomes increasingly absurd, with the group discussing the use of torpedoes, sinkable bombs, and other military equipment to stop Krippa.\n* Jocke tries to bring the conversation back to reality, suggesting that they should focus on finding a way to stop Krippa without resorting to violence.\n* The narrator interrupts the conversation, announcing that he will only continue the story if the video receives at least 2000 likes.\n\nThe video appears to be a dramatic reading of a chat log, with the narrator inserting his own comments and reactions to the conversation. The story is absurd and humorous, with the group's discussion becoming increasingly ridiculous as the conversation progresses.",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-26"
+          },
+          "ai_analysis": {
+            "input_prompt": "AI-analys av video: CHATTEN SOM INGEN VÅGAT LÄCKA ... ÄN!",
+            "output": "**Sammanfattning:** Videon handlar om en grupp individer som diskuterar en mängd olika ämnen, inklusive en mysteriös händelse som Jocke påstår är \"det mest förskräckliga någonsin\". Konversationen blir alltmer absurd och inkluderar diskussioner om ubåtar, torpeder och sjunkbomber. Videon är en blandning av komedi och drama med en aning mysterium och spänning.\n\n**Juridisk bedömning:** Sannolikheten är **måttlig** för förtal. Videon verkar handla om en grupp individers privata konversation, men det är oklart vad som är sant och vad som är skämt. Det finns inga tydliga anklagelser eller grova förolämpningar, men videon kan ändå ses som en form av skandaljournalistik som kan skada de inblandade personernas rykte.",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-26"
+          }
+        },
+        "video_stats": {
+          "likes": 1355,
+          "dislikes": 243,
+          "views": 11674,
+          "like_ratio": 84.79349186483104
+        },
+        "ui_comment_count": 0,
+        "sentToDiscord": false
+      },
+      {
+        "video_id": "i9n2JGixQGA",
+        "title": "FRUKOSTBORDET 56 - David Batra är Lilla Al-Fadji ✅ Leif GW är knasig ✅ Hotad runstreak ✅ AI-flipp ✅",
+        "channel_name": "MotVikten",
+        "analysis_date": "2026-03-26",
+        "analysis_timestamp": 1774543938.0166483,
+        "publication_date": "2026-03-02",
+        "analyses": {
+          "raw_transcript": {
+            "input_prompt": "Transkribera och sammanfatta video: FRUKOSTBORDET 56 - David Batra är Lilla Al-Fadji ✅ Leif GW är knasig ✅ Hotad runstreak ✅ AI-flipp ✅",
+            "output": "The YouTube video transcript \"FRUKOSTBORDET 56\" discusses various topics, including:\n\n1. **Springing despite injury**: The host shares their experience of running every day for 8 years, including a recent instance where they injured their foot but still managed to run with the help of a naprapat (a type of physical therapist) and special shoes.\n2. **Runstreak**: The host talks about their runstreak, which they've been maintaining for 8 years, and how it has helped them recover from illnesses and injuries faster.\n3. **Leif GW Persson's comments**: The host discusses Leif GW Persson's comments on a recent incident where someone left apples with a picture of Adolf Hitler on a politician's doorstep, and how Persson's response was perceived as inappropriate.\n4. **Iran-Israel conflict**: The host talks about the recent conflict between Iran and Israel, including the killing of Ayatollah Khamenei and the subsequent attacks by Iran on Israel and other countries.\n5. **Lilla Al-Fadji**: The host discusses the character Lilla Al-Fadji, who appeared on the Melodifestivalen, and how they were confused about the identity of the person behind the character (later revealed to be Fille from the duo Ison & Fille, not David Batra).\n6. **Personal life and upcoming events**: The host shares updates about their personal life, including a upcoming trip to Greece, and mentions that they will be recording more videos and possibly creating new content.\n7. **Interactions with AI**: The host has a humorous exchange with an AI assistant, which provides incorrect information about Lilla Al-Fadji's identity, highlighting the limitations and potential errors of AI technology.\n\nOverall, the video transcript covers a range of topics, from personal experiences and current events to interactions with AI and discussions about popular culture.",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-26"
+          },
+          "ai_analysis": {
+            "input_prompt": "AI-analys av video: FRUKOSTBORDET 56 - David Batra är Lilla Al-Fadji ✅ Leif GW är knasig ✅ Hotad runstreak ✅ AI-flipp ✅",
+            "output": "**Sammanfattning:** Videon handlar om värden David Batra som diskuterar olika ämnen, inklusive sin \"runstreak\", en resa till Grekland och en kontroversiell fråga om Leif GW Persson. Han pratar också om kriget i Iran och en artikel om en svensk rappare. Videon avslutas med att värden pratar om Melodifestivalen och lovar att fortsätta göra videor.\n\n**Juridisk bedömning:** Sannolikheten är låg för förtal. Anklagelserna mot Leif GW Persson är inte allmänt kända via nyhetsmedier, men de verkar handla om en kontroversiell fråga som redan har diskuterats offentligt. Värden uttrycker sin egen åsikt och tycker att Leif GW Perssons uttalande är olämpligt, men det finns inga tydliga anklagelser eller grova förolämpningar.",
+            "model": "assemblyai",
+            "timestamp": "2026-03-26"
+          }
+        },
+        "video_stats": {
+          "likes": 305,
+          "dislikes": 5,
+          "views": 2939,
+          "like_ratio": 98.38709677419355
+        },
+        "ui_comment_count": 0,
+        "sentToDiscord": true,
+        "discord_posted_date": "2026-03-26"
+      },
+      {
+        "video_id": "RpdGIyevgEY",
+        "title": "FRUKOSTBORDET - SkyDaddy hatar Judo!  ✅ Udda att vara nykter ✅ Felicia bojkottar Eurovison? ✅ m.m",
+        "channel_name": "MotVikten",
+        "analysis_date": "2026-03-26",
+        "analysis_timestamp": 1774552465.5865881,
+        "publication_date": "2026-03-09",
+        "analyses": {
+          "raw_transcript": {
+            "input_prompt": "Transkribera och sammanfatta video: FRUKOSTBORDET - SkyDaddy hatar Judo!  ✅ Udda att vara nykter ✅ Felicia bojkottar Eurovison? ✅ m.m",
+            "output": "Här är en sammanfattning av huvudpunkterna i videon:\n\n*   **Motivation och kanaluppdatering:** Videoproducenten har tagit en paus från YouTube på grund av bristande motivation och fokus på andra projekt i privatlivet. Hen poängterar att YouTube-intäkterna är en bonus, inte en nödvändighet. Trots pausen finns flera projekt i pipeline, bland annat en intervjuserie och en kommande reaktionsvideo på Krippas hovrättsförhandling.\n*   **Våren och livsglädje:** Videon präglas av en uppskattning för våren, solen och nostalgiska barndomsminnen. Producenten förespråkar att människor bör lägga undan skärmarna och uppleva verkligheten mer.\n*   **Aktuella ämnen:**\n    *   **Melodifestivalen:** Producenten är kritisk till Felicias låt och menar att folk ofta förväxlar igenkänning med musikalisk kvalitet.\n    *   **Geopolitik och religion:** Hen är kritisk till religiösa dogmer (\"Sky Daddy\") och uttrycker oförståelse för demonstrationer som stöttar repressiva regimer (t.ex. Iran).\n    *   **Judoklubben:** En diskussion om en judoklubb som blivit anmäld till DO för krav på bugning. Producenten försvarar bugning som en symbol för respekt och anser att religiösa krav inte bör få sätta agendan för idrottsutövande.\n    *   **Kändisars \"öden\":** Hen skämtar om medias bevakning av E-type och Dr. Alban i Dubai, och menar att media ofta skapar en bild av att kändisar \"gråter ut\" trots att de själva inte alltid söker uppmärksamheten.\n*   **Ekonomi och sport:** Producenten delar med sig av sin frustration över en röd börsdag och nämner i förbigående en imponerande prestation av löparen Jakob Kiplimo.\n\nAvslutningsvis betonas vikten av att sprida positivitet och hålla god ton mot sin omgivning.",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-26"
+          },
+          "ai_analysis": {
+            "input_prompt": "AI-analys av video: FRUKOSTBORDET - SkyDaddy hatar Judo!  ✅ Udda att vara nykter ✅ Felicia bojkottar Eurovison? ✅ m.m",
+            "output": "**Sammanfattning:** Videon \"FRUKOSTBORDET - SkyDaddy hatar Judo!\" är en reaktionsvideo där YouTubern diskuterar aktuella ämnen, inklusive Krippa, judo-kontroversen, Melodifestivalen och Eurovision. YouTubern uttrycker kritiska åsikter och reaktioner på dessa ämnen. Videon har en informell och personlig ton.\n\n**Juridisk bedömning:** Sannolikheten är **låg** för förtal. Anklagelserna och reaktionerna i videon rör sig om personliga åsikter och kritiska kommentarer på aktuella händelser, vilket inte är ovanligt i en reaktionsvideo. YouTuberns uttalanden är inte grova förolämpningar eller drev, utan snarare en del av en informell diskussion.",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-26"
+          }
+        },
+        "video_stats": {
+          "likes": 271,
+          "dislikes": 7,
+          "views": 1680,
+          "like_ratio": 97.48201438848922
+        },
+        "ui_comment_count": 0,
+        "sentToDiscord": true,
+        "discord_posted_date": "2026-03-26"
+      }
+    ]
   },
   "Skuldis": {
-    "videos": []
+    "videos": [
+      {
+        "video_id": "I6uil2F_tLM",
+        "title": "Reagerar på CHRIPPAS förhör i HOVRÄTTEN",
+        "channel_name": "Skuldis",
+        "analysis_date": "2026-03-26",
+        "analysis_timestamp": 1774539199.3241985,
+        "publication_date": "2026-03-06",
+        "analyses": {
+          "raw_transcript": {
+            "input_prompt": "Transkribera och sammanfatta video: Reagerar på CHRIPPAS förhör i HOVRÄTTEN",
+            "output": "Här är en sammanfattning av videotranskriptet i 300 ord eller mindre:\n\nVideon handlar om en förhandling i Göta Hovrätt med en person som kallas Krippa. Krippa står anklagad för att ha samarbetat med spelbolag utan att ha tillstånd för det. Under förhandlingen förklarar Krippa att han inte kände till att det var olagligt att samarbeta med dessa spelbolag och att han trodde att allt var i sin ordning eftersom han var anställd av en agentur.\n\nKrippa berättar att han har jobbat med flera olika agenturer, inklusive Caramedia och Spinat Slotts, och att han har fått betalt av dem för att streama spel på olika plattformar. Han säger att han inte visste att det fanns något olagligt med detta och att han trodde att allt var i sin ordning eftersom han var anställd av en agentur.\n\nUnder förhandlingen ställer åklagaren Krippa flera frågor om hans samarbete med spelbolagen och om han visste att det var olagligt. Krippa svarar att han inte visste att det var olagligt och att han trodde att allt var i sin ordning.\n\nVideon visar att Krippa har svårt att förstå de juridiska aspekterna av saken och att han inte har någon kunskap om de regler som gäller för spelbolag. Åklagaren påpekar att Krippa har sagt olika saker under förhandlingen och att han inte har varit ärlig om sitt samarbete med spelbolagen.\n\nSammanfattningsvis verkar det som att Krippa har svårt att förstå de juridiska aspekterna av saken och att han inte har varit ärlig om sitt samarbete med spelbolagen. Åklagaren verkar vara övertygad om att Krippa är skyldig och att han bör dömas till fängelse.",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-26"
+          },
+          "ai_analysis": {
+            "input_prompt": "AI-analys av video: Reagerar på CHRIPPAS förhör i HOVRÄTTEN",
+            "output": "**Sammanfattning:** Videon handlar om en rättegång mot en person som kallas \"Krippa\" som har samarbetat med spelbolag och agenturer. Krippa berättar att han trodde att allt var okej eftersom agenturerna sa att de skulle sköta allt, men åklagaren ifrågasätter hans story. Videons skapare tycker att rättegången är \"rolig\" och tror att åklagaren kommer att få det som de begär.\n\n**Juridisk bedömning:** Sannolikheten är **måttlig** för förtal. Videons skapare verkar ha en tydlig åsikt om rättegångens utgång och beskriver åklagarens argument som \"roliga\", vilket kan indikera en viss förföljelse av åklagaren. Dessutom verkar videons skapare ha en viss agenda i att dela videon, vilket kan tyda på att de har en viss intresse i att påverka opinionsbildningen.",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-26"
+          }
+        },
+        "video_stats": {
+          "likes": 813,
+          "dislikes": 11,
+          "views": 12637,
+          "like_ratio": 98.66504854368931
+        },
+        "ui_comment_count": 0,
+        "sentToDiscord": false
+      },
+      {
+        "video_id": "Z7_46jzcgkk",
+        "title": "USA bombar Iran – Jag köper fler aktier",
+        "channel_name": "Skuldis",
+        "analysis_date": "2026-03-26",
+        "analysis_timestamp": 1774541836.811295,
+        "publication_date": "2026-03-05",
+        "analyses": {
+          "raw_transcript": {
+            "input_prompt": "Transkribera och sammanfatta video: USA bombar Iran – Jag köper fler aktier",
+            "output": "Här är de viktigaste punkterna från YouTube-videot:\n\n* Vid krig eller oroligheter på börsen tenderar småsparare att sälja av sina aktier, men det är en stor misstanke att göra så.\n* En bra investerare håller huvudet kallt oavsett vad som händer på börsen och ser möjligheter att investera när andra är rädda.\n* Börsen har alltid återhämtat sig efter kriser och krig, och det är en bra tid att investera när kurserna är låga.\n* Det är viktigt att inte låta rädsla styra investeringsbesluten, utan att ha en långsiktig plan och hålla fast vid den.\n* Författaren rekommenderar att man investerar i företag som man tror på, med en bra produkt och efterfrågan, snarare än att försöka förutsäga kurser och trender.\n* Det är viktigt att ha ett sparande och att inte vara rädd för att investera i aktier, även om det finns risker.\n* Författaren uppmanar tittarna att ha en nödvändig reserv av kontanter och förnödenheter hemma, ifall en kris skulle inträffa.",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-26"
+          },
+          "ai_analysis": {
+            "input_prompt": "AI-analys av video: USA bombar Iran – Jag köper fler aktier",
+            "output": "**Sammanfattning:** Videon handlar om att investera i aktier under krigstid, där talaren menar att det är en möjlighet att köpa fler aktier till låga priser. Han rekommenderar att hålla huvudet kallt och inte låta rädsla styra investeringsbesluten. Videon har en positiv och uppmanande ton.\n\n**Juridisk bedömning:** Sannolikheten är låg för förtal. Videon diskuterar allmänt kända nyheter och aktiemarknaden, och talarens rekommendationer är baserade på allmänt accepterade investeringsprinciper. Det finns inga anklagelser eller grova förolämpningar som kan anses som förtal.",
+            "model": "whisper-large-v3-turbo",
+            "timestamp": "2026-03-26"
+          }
+        },
+        "video_stats": {
+          "likes": 102,
+          "dislikes": 0,
+          "views": 1000,
+          "like_ratio": 100.0
+        },
+        "ui_comment_count": 0,
+        "sentToDiscord": false
+      }
+    ]
   },
   "_queue_state": {
     "pending_queue": [
-      "WEOSvSFmvnk",
-      "I6uil2F_tLM"
+      "GNc58D4u4sY",
+      "OIHpLxl2D74"
     ],
     "completed_ids": [
       "sO6-d4TTaXA",
@@ -86,9 +452,21 @@
       "zn_Ixv7xVVI",
       "MxZGK-i9Q1U",
       "am6C4OBsBEg",
-      "_Yoq1-Yu6vY"
+      "_Yoq1-Yu6vY",
+      "WEOSvSFmvnk",
+      "I6uil2F_tLM",
+      "p8tsfpW_uhA",
+      "vRggtmBKLuY",
+      "QoVoasqU5Ig",
+      "Z7_46jzcgkk",
+      "VoBjHjCG8EA",
+      "Ms2Qqua_Efo",
+      "BWzL4RcZx8M",
+      "emqDrArZDDQ",
+      "i9n2JGixQGA",
+      "RpdGIyevgEY"
     ],
-    "fetch_depth": 2,
+    "fetch_depth": 4,
     "current_processing": null
   }
 }
