@@ -77,7 +77,6 @@
   },
   "_queue_state": {
     "pending_queue": [
-      "GNc58D4u4sY",
       "OIHpLxl2D74"
     ],
     "completed_ids": [
@@ -98,7 +97,8 @@
       "BWzL4RcZx8M",
       "emqDrArZDDQ",
       "i9n2JGixQGA",
-      "RpdGIyevgEY"
+      "RpdGIyevgEY",
+      "GNc58D4u4sY"
     ],
     "fetch_depth": 4,
     "current_processing": null
