@@ -76,9 +76,7 @@
     "videos": []
   },
   "_queue_state": {
-    "pending_queue": [
-      "OIHpLxl2D74"
-    ],
+    "pending_queue": [],
     "completed_ids": [
       "sO6-d4TTaXA",
       "CsocaOQjm8M",
@@ -98,7 +96,8 @@
       "emqDrArZDDQ",
       "i9n2JGixQGA",
       "RpdGIyevgEY",
-      "GNc58D4u4sY"
+      "GNc58D4u4sY",
+      "OIHpLxl2D74"
     ],
     "fetch_depth": 4,
     "current_processing": null
