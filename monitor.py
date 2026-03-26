@@ -2410,14 +2410,14 @@ def _get_compression_settings(compression_level):
 
 
 def _get_ffmpeg_download_options(ffmpeg_available, ffmpeg_dir):
-    """Return appropriate download options with WPC Guest Token hack"""
+    """Return appropriate download options with improved WPC Guest Token hack"""
     compression_settings = _get_compression_settings("standard")
     
     opts = {
         "format": WORST_AUDIO_FORMAT if ffmpeg_available else "bestaudio/best",
         "outtmpl": None,
-        "quiet": False,      # Keep this False to see plugin logs
-        "verbose": True,     # ADD THIS to debug the WPC plugin
+        "quiet": False,
+        "verbose": True,
         "no_warnings": False,
         "extract_audio": True,
         "keepvideo": False,
@@ -2425,9 +2425,10 @@ def _get_ffmpeg_download_options(ffmpeg_available, ffmpeg_dir):
         "noprogress": True,
         "extractor_args": {
             "youtube": {
-                # CHANGE: Use 'web' and 'mweb' which match the web+wpc token
-                "player_client": ["web", "mweb"], 
-                "po_token": ["web+wpc"]
+                # Improved WPC configuration based on yt-dlp debug warning
+                # Explicit GVS context + WPC provider; added android client for robustness
+                "player_client": ["web", "mweb", "android"],
+                "po_token": ["web.gvs+wpc"]
             }
         }
     }
