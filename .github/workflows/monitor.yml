@@ -1,8 +1,8 @@
 name: YouTube Video Analysis
 
 on:
-  # schedule:
-  #   - cron: '0 * * * *'  # Runs once every hour at minute 0
+  schedule:
+    - cron: '0 * * * *'  # Runs once every hour
   workflow_dispatch:       # Allow manual trigger
 
 jobs:
@@ -12,25 +12,35 @@ jobs:
     concurrency:
       group: ${{ github.workflow }}
     permissions:
-      contents: write # Crucial for saving the state file
+      contents: write # Crucial for saving the state file back to the repo
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install FFmpeg
+
+      - name: Install System Dependencies
         run: |
           sudo apt update
-          sudo apt install -y ffmpeg
-      - name: Install dependencies
+          # xvfb is required for the WPC plugin's headless browser to function
+          sudo apt install -y ffmpeg xvfb libexif12
+
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          # Install the WPC plugin and browser automation tools
-          pip install yt-dlp-getpot-wpc nodriver
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          # Install the specific bypass tools
+          pip install yt-dlp-getpot-wpc nodriver yt-dlp
+
       - name: Install Playwright browsers
         run: |
+          # Keep this if your script uses Playwright elsewhere
           playwright install chromium
+
       - name: Run monitor
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
@@ -39,12 +49,13 @@ jobs:
           ASSEMBLYAI_API_KEY: ${{ secrets.ASSEMBLYAI_API_KEY }}
           CHANNELS_LIST: ${{ secrets.CHANNELS_LIST }}
           DISCORD_DEBUG: "true"
-        run: python monitor.py
+        # We wrap the execution in xvfb-run to provide a virtual display for nodriver
+        run: xvfb-run python monitor.py
+
       - name: Commit and Push changes
         run: |
-          git config --global user.name "Watchdog Bot"
-          git config --global user.email "bot@github.com"
-          git add analysis_stats.json
-          git commit -m "Update analysis stats" || exit 0
-          git pull --rebase
-          git push
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add queue_state.json
+          # Only commit if there are changes to avoid workflow errors
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update video queue state [skip ci]" && git push)

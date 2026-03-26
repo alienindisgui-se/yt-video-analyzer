@@ -2416,18 +2416,17 @@ def _get_ffmpeg_download_options(ffmpeg_available, ffmpeg_dir):
     opts = {
         "format": WORST_AUDIO_FORMAT if ffmpeg_available else "bestaudio/best",
         "outtmpl": None,
-        "quiet": False,      # Changed to False so we can see errors in logs
+        "quiet": False,      # Keep this False to see plugin logs
+        "verbose": True,     # ADD THIS to debug the WPC plugin
         "no_warnings": False,
         "extract_audio": True,
         "keepvideo": False,
         "nopart": True,
         "noprogress": True,
-        # THE WPC HACK:
-        # 1. Use the iOS client (less likely to be challenged)
-        # 2. Use the WPC plugin to generate a Guest PO Token
         "extractor_args": {
             "youtube": {
-                "player_client": ["ios"],
+                # CHANGE: Use 'web' and 'mweb' which match the web+wpc token
+                "player_client": ["web", "mweb"], 
                 "po_token": ["web+wpc"]
             }
         }
