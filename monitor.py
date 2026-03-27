@@ -816,6 +816,21 @@ def _process_channel_videos(channel_data):
     
     return completed_ids
 
+def _get_free_proxy():
+    """Fetch one free HTTP proxy from ProxyScrape public API (no key needed)"""
+    try:
+        resp = requests.get(
+            "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=10000&country=all&ssl=all&anonymity=all",
+            timeout=8
+        )
+        if resp.status_code == 200:
+            proxies = [p.strip() for p in resp.text.splitlines() if p.strip()]
+            if proxies:
+                logging.info(f"🔀 Using free proxy for yt-dlp: {proxies[0]}")
+                return f"http://{proxies[0]}"
+    except Exception:
+        pass
+    return None
 
 def _get_completed_videos():
     """Extract completed video IDs from analysis stats"""
@@ -2432,6 +2447,11 @@ def _get_ffmpeg_download_options(ffmpeg_available, ffmpeg_dir):
             }
         }
     }
+    
+    proxy = _get_free_proxy()
+    if proxy:
+        opts["proxy"] = proxy
+        logging.info("🛡️ Added free rotating proxy as WPC fallback")
 
     if ffmpeg_available:
         opts["postprocessors"] = compression_settings["postprocessors"]
@@ -3187,12 +3207,14 @@ if __name__ == "__main__":
                 # Create a separate Python process for each video to avoid Playwright conflicts
                 # Pass environment variables to subprocess
                 env = os.environ.copy()
+                # === CRITICAL FIX: Wrap subprocess with xvfb-run so WPC/nodriver can launch browser ===
                 result = subprocess.run([
-                    sys.executable, 
-                    __file__,  # This script
-                    "--single-video", 
+                    "xvfb-run", "-a", "--",          # <-- This is the key line
+                    sys.executable,
+                    __file__,
+                    "--single-video",
                     v_id
-                ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding='utf-8', errors='replace', timeout=1200, env=env)  # 20 minute timeout
+                ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding='utf-8', errors='replace', timeout=1200, env=env)
                 
                 if result.returncode == 0:
                     logging.info(f"Successfully processed video {v_id}")

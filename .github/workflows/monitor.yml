@@ -53,6 +53,7 @@ jobs:
           ASSEMBLYAI_API_KEY: ${{ secrets.ASSEMBLYAI_API_KEY }}
           CHANNELS_LIST: ${{ secrets.CHANNELS_LIST }}
           DISCORD_DEBUG: "true"
+          YT_COOKIES_TXT: ${{ secrets.YT_COOKIES_TXT }}   # ← ADD THIS LINE
         # We wrap the execution in xvfb-run to provide a virtual display for nodriver
         # Verify IP change (Optional, for debugging)
         run: |
