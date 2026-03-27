@@ -13,7 +13,6 @@
   },
   "_queue_state": {
     "pending_queue": [
-      "ssbDu38dGZ4",
       "CsocaOQjm8M",
       "a5s2fkt-tpk",
       "zn_Ixv7xVVI",
@@ -22,7 +21,8 @@
       "MxZGK-i9Q1U"
     ],
     "completed_ids": [
-      "am6C4OBsBEg"
+      "am6C4OBsBEg",
+      "ssbDu38dGZ4"
     ],
     "fetch_depth": 2,
     "current_processing": null
