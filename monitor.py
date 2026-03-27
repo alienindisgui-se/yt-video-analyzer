@@ -816,22 +816,6 @@ def _process_channel_videos(channel_data):
     
     return completed_ids
 
-def _get_free_proxy():
-    """Fetch one free HTTP proxy from ProxyScrape public API (no key needed)"""
-    try:
-        resp = requests.get(
-            "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=10000&country=all&ssl=all&anonymity=all",
-            timeout=8
-        )
-        if resp.status_code == 200:
-            proxies = [p.strip() for p in resp.text.splitlines() if p.strip()]
-            if proxies:
-                logging.info(f"🔀 Using free proxy for yt-dlp: {proxies[0]}")
-                return f"http://{proxies[0]}"
-    except Exception:
-        pass
-    return None
-
 def _get_completed_videos():
     """Extract completed video IDs from analysis stats"""
     logging.info("=== FUNCTION START: _get_completed_videos ===")
@@ -2447,11 +2431,6 @@ def _get_ffmpeg_download_options(ffmpeg_available, ffmpeg_dir):
             }
         }
     }
-    
-    proxy = _get_free_proxy()
-    if proxy:
-        opts["proxy"] = proxy
-        logging.info("🛡️ Added free rotating proxy as WPC fallback")
 
     if ffmpeg_available:
         opts["postprocessors"] = compression_settings["postprocessors"]
