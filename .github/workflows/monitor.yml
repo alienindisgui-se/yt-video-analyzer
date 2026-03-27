@@ -41,6 +41,10 @@ jobs:
           # Keep this if your script uses Playwright elsewhere
           playwright install chromium
 
+      - name: Install Cloudflare WARP
+        uses: fscarmen/warp-on-actions@v1.1
+        with:
+          stack: dual # Use both IPv4 and IPv6
       - name: Run monitor
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
@@ -50,7 +54,10 @@ jobs:
           CHANNELS_LIST: ${{ secrets.CHANNELS_LIST }}
           DISCORD_DEBUG: "true"
         # We wrap the execution in xvfb-run to provide a virtual display for nodriver
-        run: xvfb-run python monitor.py
+        # Verify IP change (Optional, for debugging)
+        run: |
+          curl -s https://ifconfig.me
+          xvfb-run python monitor.py
 
       - name: Commit and Push changes
         run: |
