@@ -77,7 +77,6 @@
   },
   "_queue_state": {
     "pending_queue": [
-      "AEFc8PGdFjw",
       "tMJjCaglhmA",
       "ja-i1XYnqqg",
       "XPdClsx3W_M",
@@ -118,7 +117,8 @@
       "OF-R2iVQIcE",
       "e-rWGaX_XZA",
       "169-7_UnO2k",
-      "Pt70d9k1MV8"
+      "Pt70d9k1MV8",
+      "AEFc8PGdFjw"
     ],
     "fetch_depth": 6,
     "current_processing": null
